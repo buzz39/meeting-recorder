@@ -100,6 +100,13 @@ Press **Ctrl+C** to stop — recording and transcript are saved automatically.
 
 ### System tray mode (Windows)
 
+**Easiest way — double-click:**
+- `start_tray.bat` — launches tray with a console window (shows logs)
+- `start_tray.vbs` — launches tray **silently** (no console window, fully invisible)
+
+> 💡 **Pro tip:** Create a shortcut to `start_tray.vbs` and put it in your Startup folder (`Win+R` → `shell:startup`) to auto-launch on boot!
+
+**From CLI:**
 ```bash
 python recorder.py tray
 ```

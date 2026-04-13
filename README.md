@@ -60,6 +60,20 @@ If `HF_TOKEN` is not set or pyannote is not installed, the recorder automaticall
 
 ## Usage
 
+### Quick start with speaker diarization
+
+```bash
+# Step 1: Set your HuggingFace token (required for pyannote speaker detection)
+set HF_TOKEN=hf_your_token_here       # Windows CMD
+$env:HF_TOKEN = "hf_your_token_here"  # PowerShell
+
+# Step 2: Start recording — that's it!
+python recorder.py start
+```
+
+> 💡 **Tip:** Add `HF_TOKEN` to your Windows environment variables permanently so you don't have to set it every time:
+> Settings → System → About → Advanced system settings → Environment Variables → New → Name: `HF_TOKEN`, Value: `hf_your_token_here`
+
 ### Record a meeting
 
 ```bash

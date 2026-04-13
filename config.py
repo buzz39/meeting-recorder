@@ -5,14 +5,23 @@ from dataclasses import dataclass, field
 
 @dataclass
 class Config:
-    # Whisper model size: tiny, base, small, medium, large-v2
-    model_size: str = "base"
+    # Whisper model size — tradeoffs:
+    #   tiny   (~75MB)  — fastest, lowest accuracy, ~1GB RAM
+    #   base   (~145MB) — fast, decent accuracy, ~1GB RAM
+    #   small  (~488MB) — good balance of speed & accuracy, ~2GB RAM (default)
+    #   medium (~1.5GB) — slow, high accuracy, ~5GB RAM
+    #   large-v2 (~3GB) — slowest, best accuracy, ~10GB RAM
+    model_size: str = "small"
     
     # Output directory for recordings
     output_dir: str = os.path.join(os.path.dirname(__file__), "recordings")
     
-    # Output format: txt or srt
+    # Output format: txt, srt, or all (both txt and srt)
     output_format: str = "txt"
+    
+    # HuggingFace token for pyannote speaker diarization
+    # Set via HF_TOKEN env var or here directly
+    hf_token: str | None = field(default_factory=lambda: os.environ.get("HF_TOKEN"))
     
     # Audio chunk duration in seconds for processing
     chunk_duration: float = 30.0

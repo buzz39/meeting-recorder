@@ -65,10 +65,6 @@ class Recorder:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         session_name = f"meeting_{timestamp}"
         wav_path = os.path.join(self.config.output_dir, f"{session_name}.wav")
-        txt_path = os.path.join(
-            self.config.output_dir,
-            f"{session_name}.{self.config.output_format}",
-        )
 
         print("=" * 60)
         print(f"🎙️  Meeting Recorder")
@@ -76,6 +72,9 @@ class Recorder:
         print(f"   Output: {self.config.output_dir}")
         print(f"   Press Ctrl+C to stop recording")
         print("=" * 60)
+
+        # Determine output paths based on format
+        output_paths = self._get_output_paths(self.config.output_dir, session_name)
 
         # Load whisper model
         self.transcriber.load_model()
@@ -148,18 +147,32 @@ class Recorder:
         print(f"\n💾 Saving audio to {wav_path}")
         capture.save_wav(wav_path, frames)
 
-        print(f"💾 Saving transcript to {txt_path}")
-        self._save_transcript(txt_path, self._all_segments)
+        for fmt, path in output_paths.items():
+            print(f"💾 Saving {fmt} transcript to {path}")
+            self._save_transcript(path, self._all_segments, fmt)
 
         capture.cleanup()
         print(f"\n✅ Recording saved! ({chunk_count} chunks processed)")
         print(f"   Audio: {wav_path}")
-        print(f"   Transcript: {txt_path}")
+        for fmt, path in output_paths.items():
+            print(f"   Transcript ({fmt}): {path}")
 
-    def _save_transcript(self, filepath: str, segments: list[dict]):
+    def _get_output_paths(self, output_dir: str, session_name: str) -> dict[str, str]:
+        """Return dict of format -> filepath based on config.output_format."""
+        paths = {}
+        fmt = self.config.output_format
+        if fmt in ("txt", "all"):
+            paths["txt"] = os.path.join(output_dir, f"{session_name}.txt")
+        if fmt in ("srt", "all"):
+            paths["srt"] = os.path.join(output_dir, f"{session_name}.srt")
+        return paths
+
+    def _save_transcript(self, filepath: str, segments: list[dict], fmt: str = None):
         """Save transcript to file in txt or srt format."""
+        if fmt is None:
+            fmt = "srt" if filepath.endswith(".srt") else "txt"
         with open(filepath, "w", encoding="utf-8") as f:
-            if self.config.output_format == "srt":
+            if fmt == "srt":
                 for i, seg in enumerate(segments, 1):
                     start = format_srt_timestamp(seg["start"])
                     end = format_srt_timestamp(seg["end"])
@@ -198,9 +211,16 @@ class Recorder:
 
         # Save transcript next to audio file
         base = os.path.splitext(filepath)[0]
-        txt_path = f"{base}_transcript.{self.config.output_format}"
-        self._save_transcript(txt_path, segments)
-        print(f"\n💾 Transcript saved to: {txt_path}")
+        fmt = self.config.output_format
+        if fmt == "all":
+            for f in ("txt", "srt"):
+                path = f"{base}_transcript.{f}"
+                self._save_transcript(path, segments, f)
+                print(f"\n💾 Transcript saved to: {path}")
+        else:
+            path = f"{base}_transcript.{fmt}"
+            self._save_transcript(path, segments, fmt)
+            print(f"\n💾 Transcript saved to: {path}")
 
     def list_recordings(self):
         """List all past recordings."""
@@ -248,9 +268,9 @@ def main():
 
     # start
     start_parser = subparsers.add_parser("start", help="Start recording")
-    start_parser.add_argument("--model", default="base", help="Whisper model size (tiny/base/small/medium/large-v2)")
+    start_parser.add_argument("--model", default="small", help="Whisper model size (tiny/base/small/medium/large-v2)")
     start_parser.add_argument("--output", default=None, help="Output directory")
-    start_parser.add_argument("--format", default="txt", choices=["txt", "srt"], help="Transcript format")
+    start_parser.add_argument("--format", default="txt", choices=["txt", "srt", "all"], help="Transcript format (all = txt + srt)")
     start_parser.add_argument("--device", type=int, default=None, help="Audio device index")
     start_parser.add_argument("--language", default=None, help="Language code (e.g. en, hi)")
     start_parser.add_argument("--chunk", type=float, default=30.0, help="Chunk duration in seconds")
@@ -261,11 +281,18 @@ def main():
     # transcribe
     trans_parser = subparsers.add_parser("transcribe", help="Transcribe an audio file")
     trans_parser.add_argument("file", help="Path to audio file")
-    trans_parser.add_argument("--model", default="base", help="Whisper model size")
-    trans_parser.add_argument("--format", default="txt", choices=["txt", "srt"])
+    trans_parser.add_argument("--model", default="small", help="Whisper model size")
+    trans_parser.add_argument("--format", default="txt", choices=["txt", "srt", "all"])
 
     # devices
     subparsers.add_parser("devices", help="List audio devices")
+
+    # tray (Windows system tray mode)
+    tray_parser = subparsers.add_parser("tray", help="Launch in system tray mode (Windows)")
+    tray_parser.add_argument("--model", default="small", help="Whisper model size")
+    tray_parser.add_argument("--output", default=None, help="Output directory")
+    tray_parser.add_argument("--format", default="all", choices=["txt", "srt", "all"])
+    tray_parser.add_argument("--language", default=None, help="Language code")
 
     args = parser.parse_args()
 
@@ -298,6 +325,9 @@ def main():
         recorder.transcribe_file(args.file)
     elif args.command == "devices":
         recorder.list_devices()
+    elif args.command == "tray":
+        from tray_app import run_tray
+        run_tray(config)
 
 
 if __name__ == "__main__":

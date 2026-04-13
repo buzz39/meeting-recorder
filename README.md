@@ -5,6 +5,14 @@
 
 A lightweight Windows CLI tool that captures system audio (WASAPI loopback), transcribes it locally using faster-whisper, and identifies different speakers — all running offline after initial setup.
 
+## Features
+
+- **Local transcription** — faster-whisper runs entirely on CPU, no cloud API needed
+- **Speaker diarization** — pyannote-audio (accurate, neural) or energy-based (lightweight) fallback
+- **Multiple output formats** — TXT timestamps, SRT subtitles, or both
+- **System tray mode** — minimize to tray, start/stop recording from right-click menu (Windows)
+- **Real-time streaming** — see transcription as it happens during recording
+
 ## Prerequisites
 
 - **Windows 10/11** (WASAPI loopback is Windows-only)
@@ -13,57 +21,97 @@ A lightweight Windows CLI tool that captures system audio (WASAPI loopback), tra
 
 ## Installation
 
-```bash
-# Clone or copy the project
-cd meeting-recorder
+### Full install (with pyannote speaker diarization)
 
-# Create virtual environment (recommended)
+```bash
+cd meeting-recorder
 python -m venv venv
 venv\Scripts\activate
-
-# Install dependencies
 pip install -r requirements.txt
 ```
 
-The Whisper model downloads automatically on first run (~150MB for `base`).
+> ⚠️ `torch` is ~2GB. Full install is recommended if you have the disk space.
+
+### Lite install (energy-based diarization, smaller download)
+
+```bash
+pip install -r requirements-lite.txt
+```
+
+The Whisper model downloads automatically on first run (~488MB for `small`).
+
+### pyannote setup (for full install)
+
+pyannote-audio requires a HuggingFace token with access to the model:
+
+1. Create an account at [huggingface.co](https://huggingface.co)
+2. Accept the terms for [pyannote/speaker-diarization-3.1](https://huggingface.co/pyannote/speaker-diarization-3.1)
+3. Accept the terms for [pyannote/segmentation-3.0](https://huggingface.co/pyannote/segmentation-3.0)
+4. Create a token at [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens)
+5. Set the token:
+
+```bash
+set HF_TOKEN=hf_your_token_here       # Windows CMD
+$env:HF_TOKEN = "hf_your_token_here"  # PowerShell
+export HF_TOKEN=hf_your_token_here     # Linux/macOS
+```
+
+If `HF_TOKEN` is not set or pyannote is not installed, the recorder automatically falls back to energy-based diarization.
 
 ## Usage
 
 ### Record a meeting
+
 ```bash
-# Start recording with defaults (base model, txt output)
+# Start recording (small model, txt output)
 python recorder.py start
 
-# Use a larger model for better accuracy
-python recorder.py start --model small
+# Use a different model
+python recorder.py start --model base
 
 # Save as SRT subtitles
 python recorder.py start --format srt
 
-# Custom output directory
-python recorder.py start --output C:\Users\you\meetings
+# Save both TXT and SRT
+python recorder.py start --format all
 
-# Specify language (skip auto-detection)
-python recorder.py start --language en
+# Custom output directory + language
+python recorder.py start --output C:\Users\you\meetings --language en
 
 # All options
-python recorder.py start --model small --format srt --output ./my_meetings --language en --chunk 20
+python recorder.py start --model small --format all --output ./my_meetings --language en --chunk 20
 ```
 
 Press **Ctrl+C** to stop — recording and transcript are saved automatically.
 
+### System tray mode (Windows)
+
+```bash
+python recorder.py tray
+```
+
+This minimizes to the system tray with:
+- 🔴 Red circle icon when recording
+- ⚫ Gray circle icon when idle
+- Right-click menu: Start Recording, Stop Recording, Open Recordings Folder, Quit
+- Tooltip shows elapsed recording time
+
 ### Transcribe an existing file
+
 ```bash
 python recorder.py transcribe path\to\meeting.wav
 python recorder.py transcribe meeting.wav --model small --format srt
+python recorder.py transcribe meeting.wav --format all
 ```
 
 ### List past recordings
+
 ```bash
 python recorder.py list
 ```
 
 ### List audio devices
+
 ```bash
 python recorder.py devices
 ```
@@ -72,16 +120,33 @@ Use `--device <index>` with `start` to pick a specific loopback device.
 
 ## Output
 
-Each recording creates two files in the output directory:
+Each recording creates files in the output directory:
 - `meeting_YYYYMMDD_HHMMSS.wav` — full audio
 - `meeting_YYYYMMDD_HHMMSS.txt` — transcript with timestamps and speaker labels
+- `meeting_YYYYMMDD_HHMMSS.srt` — SRT subtitles (if `--format srt` or `--format all`)
 
-### Sample transcript output
+### Sample TXT output
+
 ```
 [00:00:02.340] Speaker 1: Welcome everyone to the standup.
 [00:00:05.120] Speaker 1: Let's start with updates from the backend team.
 [00:00:08.900] Speaker 2: Sure, we shipped the API changes yesterday.
-[00:00:15.400] Speaker 3: On the frontend side, we're still blocked on the design review.
+```
+
+### Sample SRT output
+
+```
+1
+00:00:02,340 --> 00:00:05,120
+[Speaker 1] Welcome everyone to the standup.
+
+2
+00:00:05,120 --> 00:00:08,900
+[Speaker 1] Let's start with updates from the backend team.
+
+3
+00:00:08,900 --> 00:00:15,400
+[Speaker 2] Sure, we shipped the API changes yesterday.
 ```
 
 ## Model Sizes vs Speed
@@ -93,7 +158,7 @@ Each recording creates two files in the output directory:
 | `small`  | 488 MB | ⚡⚡   | ★★★★☆   | ~2 GB |
 | `medium` | 1.5 GB | ⚡     | ★★★★★   | ~5 GB |
 
-**Recommendation:** Start with `base` for real-time. Use `small` if you have 8GB+ RAM and don't mind slight delay.
+**Default:** `small` — good balance of speed and accuracy for 8GB+ RAM machines.
 
 ## Troubleshooting
 
@@ -105,44 +170,22 @@ Each recording creates two files in the output directory:
 ### No audio captured / empty transcript
 - Ensure something is actually playing through your speakers during recording
 - Check that your meeting app audio is going to the default output device
-- Virtual audio cables may need separate configuration
 
 ### Transcription is slow
-- Use a smaller model: `--model tiny`
+- Use a smaller model: `--model tiny` or `--model base`
 - Reduce chunk size: `--chunk 15`
-- Close other CPU-heavy applications
 
 ### Speaker detection is inaccurate
-The built-in diarization uses energy-based detection (lightweight but approximate). For better accuracy, consider integrating [pyannote-audio](https://github.com/pyannote/pyannote-audio):
-
-```bash
-pip install pyannote-audio
-```
-Then modify `diarizer.py` to use pyannote's `Pipeline.from_pretrained("pyannote/speaker-diarization-3.1")`. Note: requires a HuggingFace token.
+- **Best:** Install pyannote-audio (full install) and set `HF_TOKEN`
+- **Fallback:** Energy-based detection works best when speakers have distinct volumes and take clear turns
 
 ## How It Works
 
-1. **Audio Capture** — Uses `pyaudiowpatch` to open a WASAPI loopback stream that mirrors your default audio output
-2. **Chunked Processing** — Audio is buffered in 30-second chunks (configurable) and sent to faster-whisper
-3. **Transcription** — faster-whisper (CTranslate2) runs locally on CPU, converting speech to text with timestamps
-4. **Speaker Detection** — Energy-based analysis detects silence gaps and audio profile changes to assign speaker labels
-5. **Output** — Results stream to console in real-time and are saved to file on stop
-
-## Contributing
-
-Contributions are welcome! Feel free to:
-
-1. Fork the repo
-2. Create a feature branch (`git checkout -b feature/awesome`)
-3. Commit your changes (`git commit -m 'Add awesome feature'`)
-4. Push to the branch (`git push origin feature/awesome`)
-5. Open a Pull Request
-
-### Ideas for contributions
-- Linux/macOS audio capture support (PulseAudio/CoreAudio)
-- pyannote-audio integration for better speaker diarization
-- Real-time subtitle overlay
-- Meeting summary generation with LLMs
+1. **Audio Capture** — WASAPI loopback stream mirrors your default audio output
+2. **Chunked Processing** — Audio buffered in 30s chunks, sent to faster-whisper
+3. **Transcription** — faster-whisper (CTranslate2) runs locally on CPU
+4. **Speaker Diarization** — pyannote neural pipeline (or energy-based fallback)
+5. **Output** — Real-time console output + saved files on stop
 
 ## License
 

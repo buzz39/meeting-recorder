@@ -1,3 +1,12 @@
+# Core
 pyaudiowpatch>=0.2.12
 faster-whisper>=1.0.0
 numpy>=1.24.0
+
+# Speaker diarization (full) — pyannote requires HF_TOKEN and ~2GB for torch
+pyannote.audio>=3.1.0
+torch>=2.0.0
+
+# System tray (Windows)
+pystray>=0.19.0
+Pillow>=10.0.0

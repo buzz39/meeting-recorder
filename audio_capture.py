@@ -140,9 +140,14 @@ class AudioCapture:
             wf.setframerate(rate)
             wf.writeframes(b"".join(frames))
 
-    def get_chunk(self, duration: float) -> np.ndarray | None:
+    def get_chunk(self, duration: float, stop_event: threading.Event | None = None) -> np.ndarray | None:
         """Collect audio samples for `duration` seconds, return as float32 array.
         
+        Args:
+            duration: Number of seconds of audio to collect.
+            stop_event: Optional threading.Event; when set, collection stops
+                        immediately so callers are not blocked for the full duration.
+
         Returns None if recording stopped before enough data collected.
         """
         if not self._device_info:
@@ -157,6 +162,8 @@ class AudioCapture:
         collected = []
         total = 0
         while total < target_samples and self.is_recording:
+            if stop_event is not None and stop_event.is_set():
+                break
             try:
                 chunk = self.audio_queue.get(timeout=1.0)
                 collected.append(chunk)

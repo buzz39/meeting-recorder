@@ -20,16 +20,23 @@ except ImportError:
 
 
 class EnergyDiarizer:
-    """Energy-based speaker change detection (lightweight fallback).
-    
-    Detects speaker changes by analyzing silence gaps and energy patterns.
-    Simple but effective for meetings where people take turns with natural pauses.
+    """Audio-feature-based speaker change detection (lightweight fallback).
+
+    Detects speaker changes by analyzing silence gaps and audio features
+    including RMS energy, spectral centroid, and zero-crossing rate.
+    Effective for meetings where people take turns with natural pauses.
     """
+
+    # Weights for [energy, spectral_centroid, zero_crossing_rate].
+    # Spectral centroid is weighted highest (3.0) because it captures pitch/timbre
+    # differences between speakers. ZCR (2.0) reflects voicing characteristics.
+    # Energy (1.0) is weighted lowest as it varies more within a single speaker.
+    _FEATURE_WEIGHTS = np.array([1.0, 3.0, 2.0])
 
     def __init__(self, config: Config):
         self.config = config
         self._current_speaker = 1
-        self._speaker_profiles: dict[int, float] = {}
+        self._speaker_profiles: dict[int, np.ndarray] = {}
         self._max_speakers = 10
 
     def reset(self):
@@ -37,7 +44,7 @@ class EnergyDiarizer:
         self._speaker_profiles = {}
 
     def assign_speakers(self, audio_chunk: np.ndarray, segments: list[dict]) -> list[dict]:
-        """Assign speaker labels based on energy analysis."""
+        """Assign speaker labels based on audio feature analysis."""
         if not segments:
             return segments
 
@@ -48,54 +55,91 @@ class EnergyDiarizer:
             start_sample = max(0, min(int(seg["start"] * sample_rate), len(audio_chunk) - 1))
             end_sample = max(start_sample + 1, min(int(seg["end"] * sample_rate), len(audio_chunk)))
             segment_audio = audio_chunk[start_sample:end_sample]
-            energy = self._compute_energy(segment_audio)
+            features = self._compute_features(segment_audio)
 
             if prev_end is not None:
                 gap = seg["start"] - prev_end
                 if gap >= self.config.speaker_change_silence:
-                    best_speaker = self._match_speaker(energy)
-                    if best_speaker != self._current_speaker:
-                        self._current_speaker = best_speaker
+                    best_speaker = self._match_speaker(features)
+                    self._current_speaker = best_speaker
+            else:
+                # First segment: try to match against known profiles
+                best_speaker = self._match_speaker(features)
+                self._current_speaker = best_speaker
 
-            self._update_profile(self._current_speaker, energy)
+            self._update_profile(self._current_speaker, features)
             seg["speaker"] = f"Speaker {self._current_speaker}"
             prev_end = seg["end"]
 
         return segments
 
-    def _compute_energy(self, audio: np.ndarray) -> float:
+    def _compute_features(self, audio: np.ndarray) -> np.ndarray:
+        """Compute a feature vector: [energy, spectral_centroid, zero_crossing_rate]."""
         if len(audio) == 0:
-            return 0.0
-        return float(np.sqrt(np.mean(audio ** 2)))
+            return np.zeros(3)
 
-    def _match_speaker(self, energy: float) -> int:
+        # RMS energy
+        energy = float(np.sqrt(np.mean(audio ** 2)))
+
+        # Spectral centroid (weighted mean of frequencies)
+        fft_mag = np.abs(np.fft.rfft(audio))
+        freqs = np.fft.rfftfreq(len(audio), d=1.0 / self.config.sample_rate)
+        mag_sum = fft_mag.sum()
+        if mag_sum > 0:
+            spectral_centroid = float(np.sum(freqs * fft_mag) / mag_sum)
+        else:
+            spectral_centroid = 0.0
+        # Normalize centroid to [0, 1] range relative to Nyquist
+        spectral_centroid /= (self.config.sample_rate / 2)
+
+        # Zero-crossing rate
+        signs = np.sign(audio)
+        # Avoid counting zeros as crossings
+        signs[signs == 0] = 1
+        crossings = np.sum(np.abs(np.diff(signs)) > 0)
+        zcr = float(crossings) / max(len(audio) - 1, 1)
+
+        return np.array([energy, spectral_centroid, zcr])
+
+    def _match_speaker(self, features: np.ndarray) -> int:
         if not self._speaker_profiles:
-            self._speaker_profiles[1] = energy
+            self._speaker_profiles[1] = features.copy()
             return 1
 
+        weights = self._FEATURE_WEIGHTS
+
         best_id = self._current_speaker
-        best_diff = float("inf")
-        for spk_id, avg_energy in self._speaker_profiles.items():
-            diff = abs(energy - avg_energy)
-            if diff < best_diff:
-                best_diff = diff
+        best_dist = float("inf")
+        for spk_id, profile in self._speaker_profiles.items():
+            diff = np.abs(features - profile) * weights
+            dist = float(np.sum(diff))
+            if dist < best_dist:
+                best_dist = dist
                 best_id = spk_id
 
-        threshold = self.config.min_speech_energy * 2
-        if best_diff > threshold and len(self._speaker_profiles) < self._max_speakers:
+        # Determine if this is likely a new speaker.
+        # Use a relative threshold based on the average profile magnitude
+        # so it adapts to different recording conditions.
+        # 0.05 = absolute minimum distance floor (prevents over-splitting in quiet audio)
+        # 0.15 = relative sensitivity factor (15% of avg weighted feature magnitude)
+        avg_profile_mag = np.mean([float(np.sum(np.abs(p) * weights))
+                                   for p in self._speaker_profiles.values()])
+        threshold = max(0.05, avg_profile_mag * 0.15)
+
+        if best_dist > threshold and len(self._speaker_profiles) < self._max_speakers:
             new_id = max(self._speaker_profiles.keys()) + 1
-            self._speaker_profiles[new_id] = energy
+            self._speaker_profiles[new_id] = features.copy()
             return new_id
 
         return best_id
 
-    def _update_profile(self, speaker_id: int, energy: float):
+    def _update_profile(self, speaker_id: int, features: np.ndarray):
         if speaker_id in self._speaker_profiles:
             self._speaker_profiles[speaker_id] = (
-                0.7 * self._speaker_profiles[speaker_id] + 0.3 * energy
+                0.7 * self._speaker_profiles[speaker_id] + 0.3 * features
             )
         else:
-            self._speaker_profiles[speaker_id] = energy
+            self._speaker_profiles[speaker_id] = features.copy()
 
 
 class PyannoteDiarizer:

@@ -36,7 +36,7 @@ class Config:
     language: str | None = None
     
     # Minimum silence duration (seconds) to detect speaker change
-    speaker_change_silence: float = 1.5
+    speaker_change_silence: float = 0.5
     
     # Energy threshold (RMS) below which audio is considered silence
     silence_threshold: float = 0.01

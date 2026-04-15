@@ -140,7 +140,7 @@ class AudioCapture:
             wf.setframerate(rate)
             wf.writeframes(b"".join(frames))
 
-    def get_chunk(self, duration: float, stop_event: "threading.Event | None" = None) -> np.ndarray | None:
+    def get_chunk(self, duration: float, stop_event: threading.Event | None = None) -> np.ndarray | None:
         """Collect audio samples for `duration` seconds, return as float32 array.
         
         Args:

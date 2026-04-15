@@ -133,7 +133,9 @@ class TrayApp:
     def _quit(self, icon=None, item=None):
         if self.is_recording:
             self._stop_recording()
-            # Wait briefly for recorder thread to finish saving
+            # Wait for the recorder thread to finish saving.  The responsive
+            # stop should complete well within this window; 10 s is a generous
+            # upper bound that covers final WAV/transcript writes.
             if self._record_thread:
                 self._record_thread.join(timeout=10)
         if self._icon:

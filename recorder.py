@@ -108,7 +108,7 @@ class Recorder:
         try:
             while not self._stop_event.is_set():
                 chunk_offset = chunk_count * self.config.chunk_duration
-                audio_chunk = capture.get_chunk(self.config.chunk_duration)
+                audio_chunk = capture.get_chunk(self.config.chunk_duration, self._stop_event)
 
                 if audio_chunk is None or len(audio_chunk) == 0:
                     continue

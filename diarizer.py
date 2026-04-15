@@ -27,6 +27,12 @@ class EnergyDiarizer:
     Effective for meetings where people take turns with natural pauses.
     """
 
+    # Weights for [energy, spectral_centroid, zero_crossing_rate].
+    # Spectral centroid is weighted highest (3.0) because it captures pitch/timbre
+    # differences between speakers. ZCR (2.0) reflects voicing characteristics.
+    # Energy (1.0) is weighted lowest as it varies more within a single speaker.
+    _FEATURE_WEIGHTS = np.array([1.0, 3.0, 2.0])
+
     def __init__(self, config: Config):
         self.config = config
         self._current_speaker = 1
@@ -83,7 +89,7 @@ class EnergyDiarizer:
             spectral_centroid = float(np.sum(freqs * fft_mag) / mag_sum)
         else:
             spectral_centroid = 0.0
-        # Normalise centroid to [0, 1] range relative to Nyquist
+        # Normalize centroid to [0, 1] range relative to Nyquist
         spectral_centroid /= (self.config.sample_rate / 2)
 
         # Zero-crossing rate
@@ -100,8 +106,7 @@ class EnergyDiarizer:
             self._speaker_profiles[1] = features.copy()
             return 1
 
-        # Feature weights: energy matters less, spectral features matter more
-        weights = np.array([1.0, 3.0, 2.0])
+        weights = self._FEATURE_WEIGHTS
 
         best_id = self._current_speaker
         best_dist = float("inf")
@@ -115,6 +120,8 @@ class EnergyDiarizer:
         # Determine if this is likely a new speaker.
         # Use a relative threshold based on the average profile magnitude
         # so it adapts to different recording conditions.
+        # 0.05 = absolute minimum distance floor (prevents over-splitting in quiet audio)
+        # 0.15 = relative sensitivity factor (15% of avg weighted feature magnitude)
         avg_profile_mag = np.mean([float(np.sum(np.abs(p) * weights))
                                    for p in self._speaker_profiles.values()])
         threshold = max(0.05, avg_profile_mag * 0.15)

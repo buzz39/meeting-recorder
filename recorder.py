@@ -91,12 +91,14 @@ class Recorder:
         print(f"\n🔴 Recording... (saving to {session_name})")
         print("-" * 60)
 
-        # Handle Ctrl+C
-        def signal_handler(sig, frame):
-            print("\n\n⏹️  Stopping recording...")
-            self._stop_event.set()
+        # Handle Ctrl+C (only possible from the main thread; when launched
+        # from the tray app the stop_event is set directly instead).
+        if threading.current_thread() is threading.main_thread():
+            def signal_handler(sig, frame):
+                print("\n\n⏹️  Stopping recording...")
+                self._stop_event.set()
 
-        signal.signal(signal.SIGINT, signal_handler)
+            signal.signal(signal.SIGINT, signal_handler)
 
         # Process audio in chunks
         chunk_count = 0

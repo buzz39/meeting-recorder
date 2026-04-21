@@ -7,6 +7,7 @@ Otherwise, falls back to lightweight energy-based speaker change detection.
 """
 
 import numpy as np
+
 from config import Config
 
 # Try importing pyannote — graceful fallback if unavailable
@@ -144,7 +145,7 @@ class EnergyDiarizer:
 
 class PyannoteDiarizer:
     """Speaker diarization using pyannote-audio pipeline.
-    
+
     Uses pyannote/speaker-diarization-3.1 for accurate, neural-network-based
     speaker identification. Requires HF_TOKEN with access to the model.
     """
@@ -227,7 +228,7 @@ class PyannoteDiarizer:
 
 class Diarizer:
     """Speaker diarization facade.
-    
+
     Automatically selects pyannote (if available + HF_TOKEN set) or
     falls back to energy-based detection.
     """

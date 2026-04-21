@@ -8,11 +8,10 @@ NOTE: This module is Windows-only. On other platforms, it will show an error.
 """
 
 import os
+import subprocess
 import sys
 import threading
 import time
-import subprocess
-from datetime import datetime
 
 try:
     import pystray

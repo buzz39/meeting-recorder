@@ -7,10 +7,10 @@ using Windows Audio Session API (WASAPI) loopback mode.
 NOTE: This module requires Windows 10/11 and pyaudiowpatch.
 """
 
-import threading
 import queue
+import threading
 import wave
-import time
+
 import numpy as np
 
 # pyaudiowpatch is a fork of PyAudio with WASAPI loopback support (Windows only)
@@ -23,6 +23,38 @@ except ImportError:
     )
 
 from config import Config
+
+# scipy is available as a transitive dependency of faster-whisper; use its
+# polyphase resampler when present for anti-aliased downsampling.
+try:
+    from math import gcd as _gcd
+
+    from scipy.signal import resample_poly as _resample_poly
+    _SCIPY_AVAILABLE = True
+except ImportError:
+    _SCIPY_AVAILABLE = False
+
+
+def _resample_audio(audio: np.ndarray, src_rate: int, dst_rate: int) -> np.ndarray:
+    """Resample mono float32 audio from src_rate to dst_rate.
+
+    Uses scipy's polyphase resampler (with built-in anti-aliasing low-pass
+    filter) when available. Falls back to linear interpolation otherwise —
+    still aliased, but considerably better than nearest-neighbor decimation.
+    """
+    if src_rate == dst_rate or len(audio) == 0:
+        return audio
+    if _SCIPY_AVAILABLE:
+        g = _gcd(src_rate, dst_rate)
+        up = dst_rate // g
+        down = src_rate // g
+        return _resample_poly(audio, up, down).astype(np.float32)
+    # Fallback: linear interpolation.
+    n_out = int(round(len(audio) * dst_rate / src_rate))
+    if n_out <= 0:
+        return audio[:0]
+    src_idx = np.linspace(0, len(audio) - 1, num=n_out, dtype=np.float64)
+    return np.interp(src_idx, np.arange(len(audio)), audio).astype(np.float32)
 
 
 class AudioCapture:
@@ -40,7 +72,7 @@ class AudioCapture:
 
     def find_loopback_device(self) -> dict:
         """Find the default WASAPI loopback device.
-        
+
         WASAPI loopback devices mirror the output device, capturing
         whatever audio is being played through speakers/headphones.
         """
@@ -129,20 +161,33 @@ class AudioCapture:
         return frames
 
     def save_wav(self, filepath: str, frames: list[bytes]):
-        """Save captured audio frames to a WAV file."""
+        """Save captured audio frames to a WAV file.
+
+        Frames are float32 samples from the device. We convert to int16 PCM
+        before writing so the file is universally playable — the stdlib `wave`
+        module always writes a PCM (WAVE_FORMAT_PCM) header, so writing raw
+        float32 bytes with `setsampwidth(4)` produces a file that most players
+        misinterpret as int32 and render as static.
+        """
         if not frames or not self._device_info:
             return
         channels = self._device_info["maxInputChannels"]
         rate = int(self._device_info["defaultSampleRate"])
+
+        # Concatenate all float32 frames, clip, and convert to int16 PCM.
+        audio_f32 = np.frombuffer(b"".join(frames), dtype=np.float32)
+        audio_clipped = np.clip(audio_f32, -1.0, 1.0)
+        audio_i16 = (audio_clipped * 32767.0).astype(np.int16)
+
         with wave.open(filepath, "wb") as wf:
             wf.setnchannels(channels)
-            wf.setsampwidth(4)  # float32 = 4 bytes
+            wf.setsampwidth(2)  # int16 = 2 bytes
             wf.setframerate(rate)
-            wf.writeframes(b"".join(frames))
+            wf.writeframes(audio_i16.tobytes())
 
     def get_chunk(self, duration: float, stop_event: threading.Event | None = None) -> np.ndarray | None:
         """Collect audio samples for `duration` seconds, return as float32 array.
-        
+
         Args:
             duration: Number of seconds of audio to collect.
             stop_event: Optional threading.Event; when set, collection stops
@@ -177,13 +222,12 @@ class AudioCapture:
 
         audio = np.concatenate(collected)
 
-        # Resample from device rate to 16kHz for Whisper if needed
+        # Resample from device rate to 16kHz for Whisper if needed.
+        # Uses scipy.signal.resample_poly (polyphase + anti-aliasing) when
+        # available, otherwise linear interpolation. The previous nearest-
+        # neighbor approach aliased badly when downsampling 48kHz → 16kHz.
         if device_rate != 16000:
-            # Simple resampling via linear interpolation
-            ratio = 16000 / device_rate
-            indices = np.arange(0, len(audio), 1 / ratio).astype(int)
-            indices = indices[indices < len(audio)]
-            audio = audio[indices]
+            audio = _resample_audio(audio, device_rate, 16000)
 
         return audio.astype(np.float32)
 

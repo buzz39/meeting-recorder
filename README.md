@@ -1,17 +1,31 @@
 # Meeting Recorder 🎙️
 
+[![CI](https://github.com/buzz39/meeting-recorder/actions/workflows/ci.yml/badge.svg)](https://github.com/buzz39/meeting-recorder/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![Platform](https://img.shields.io/badge/platform-windows-lightgrey.svg)](#prerequisites)
 
 A lightweight Windows CLI tool that captures system audio (WASAPI loopback), transcribes it locally using faster-whisper, and identifies different speakers — all running offline after initial setup.
 
 ## Features
 
-- **Local transcription** — faster-whisper runs entirely on CPU, no cloud API needed
+- **Local transcription** — faster-whisper runs entirely on CPU (or auto-detected CUDA), no cloud API needed
 - **Speaker diarization** — pyannote-audio (accurate, neural) or energy-based (lightweight) fallback
-- **Multiple output formats** — TXT timestamps, SRT subtitles, or both
+- **Multiple output formats** — TXT timestamps, SRT subtitles, JSON, or all three
 - **System tray mode** — minimize to tray, start/stop recording from right-click menu (Windows)
 - **Real-time streaming** — see transcription as it happens during recording
+
+## Why this vs. alternatives?
+
+| Tool | Loopback capture | Local transcription | Diarization | Tray mode | Output formats |
+|------|------------------|---------------------|-------------|-----------|----------------|
+| **Meeting Recorder** | ✅ WASAPI (Windows) | ✅ faster-whisper | ✅ pyannote / energy | ✅ Windows | TXT, SRT, JSON |
+| `whisper.cpp` examples | ❌ | ✅ | ❌ | ❌ | TXT, SRT, VTT |
+| `chidiwilliams/buzz` | ❌ (mic only) | ✅ | ❌ | ❌ (GUI app) | TXT, SRT, VTT |
+| `WhisperX` | ❌ | ✅ | ✅ | ❌ | JSON, SRT |
+| Cloud (Otter, Fireflies, …) | ✅ | ❌ (cloud) | ✅ | ✅ | Many |
+
+This project's niche is the combination of **system-audio loopback** (capture the other side of any meeting app without configuring a virtual cable), **fully local** transcription + diarization, and an **always-on tray icon** so you can hit "record" the moment a meeting starts.
 
 ## Prerequisites
 
@@ -86,7 +100,10 @@ python recorder.py start --model base
 # Save as SRT subtitles
 python recorder.py start --format srt
 
-# Save both TXT and SRT
+# Save as JSON (machine-readable, ideal for piping into other tools)
+python recorder.py start --format json
+
+# Save TXT, SRT, and JSON
 python recorder.py start --format all
 
 # Custom output directory + language
@@ -142,9 +159,10 @@ Use `--device <index>` with `start` to pick a specific loopback device.
 ## Output
 
 Each recording creates files in the output directory:
-- `meeting_YYYYMMDD_HHMMSS.wav` — full audio
+- `meeting_YYYYMMDD_HHMMSS.wav` — full audio (16-bit PCM)
 - `meeting_YYYYMMDD_HHMMSS.txt` — transcript with timestamps and speaker labels
 - `meeting_YYYYMMDD_HHMMSS.srt` — SRT subtitles (if `--format srt` or `--format all`)
+- `meeting_YYYYMMDD_HHMMSS.json` — structured transcript (if `--format json` or `--format all`)
 
 ### Sample TXT output
 
@@ -168,6 +186,19 @@ Each recording creates files in the output directory:
 3
 00:00:08,900 --> 00:00:15,400
 [Speaker 2] Sure, we shipped the API changes yesterday.
+```
+
+### Sample JSON output
+
+```json
+{
+  "version": 1,
+  "segments": [
+    {"start": 2.34, "end": 5.12,  "speaker": "Speaker 1", "text": "Welcome everyone to the standup."},
+    {"start": 5.12, "end": 8.90,  "speaker": "Speaker 1", "text": "Let's start with updates from the backend team."},
+    {"start": 8.90, "end": 15.40, "speaker": "Speaker 2", "text": "Sure, we shipped the API changes yesterday."}
+  ]
+}
 ```
 
 ## Model Sizes vs Speed
@@ -207,6 +238,30 @@ Each recording creates files in the output directory:
 3. **Transcription** — faster-whisper (CTranslate2) runs locally on CPU
 4. **Speaker Diarization** — pyannote neural pipeline (or energy-based fallback)
 5. **Output** — Real-time console output + saved files on stop
+
+## Known limitations
+
+- **Windows only for system audio** — WASAPI loopback is the easiest way to
+  capture "everything playing through the speakers" without a virtual cable,
+  and it is Windows-only. Microphone-only and cross-platform capture are
+  tracked as future work.
+- **Diarization runs per chunk** — both the energy-based and pyannote
+  back-ends process each ~30 s chunk in isolation, so global speaker labels
+  can drift across long meetings. Best results come from running pyannote
+  end-to-end on the saved WAV after the meeting (see "Transcribe an existing
+  file").
+- **Energy-based diarizer is a heuristic** — it leans on RMS, spectral
+  centroid, and zero-crossing rate. It works well when speakers have
+  distinct pitch/timbre and take clear turns; it struggles with overlapping
+  speech and speakers with similar voices.
+- **First-run model download** — the Whisper model (~488 MB for `small`) is
+  fetched on first use and cached. Plan accordingly on metered connections.
+
+## Contributing
+
+Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for local
+setup, the test command, and lint configuration. The change history lives in
+[CHANGELOG.md](CHANGELOG.md).
 
 ## License
 

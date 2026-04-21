@@ -13,16 +13,15 @@ Usage:
 """
 
 import argparse
+import json
 import os
-import sys
 import signal
-import time
 import threading
 from datetime import datetime
 
 from config import Config
-from transcriber import Transcriber
 from diarizer import Diarizer
+from transcriber import Transcriber
 
 
 def format_timestamp(seconds: float) -> str:
@@ -67,10 +66,10 @@ class Recorder:
         wav_path = os.path.join(self.config.output_dir, f"{session_name}.wav")
 
         print("=" * 60)
-        print(f"🎙️  Meeting Recorder")
+        print("🎙️  Meeting Recorder")
         print(f"   Model: {self.config.model_size} | Format: {self.config.output_format}")
         print(f"   Output: {self.config.output_dir}")
-        print(f"   Press Ctrl+C to stop recording")
+        print("   Press Ctrl+C to stop recording")
         print("=" * 60)
 
         # Determine output paths based on format
@@ -93,12 +92,13 @@ class Recorder:
 
         # Handle Ctrl+C (only possible from the main thread; when launched
         # from the tray app the stop_event is set directly instead).
+        previous_sigint = None
         if threading.current_thread() is threading.main_thread():
             def signal_handler(sig, frame):
                 print("\n\n⏹️  Stopping recording...")
                 self._stop_event.set()
 
-            signal.signal(signal.SIGINT, signal_handler)
+            previous_sigint = signal.signal(signal.SIGINT, signal_handler)
 
         # Process audio in chunks
         chunk_count = 0
@@ -154,6 +154,13 @@ class Recorder:
             self._save_transcript(path, self._all_segments, fmt)
 
         capture.cleanup()
+        # Restore the previous SIGINT handler so subsequent recordings (e.g.
+        # in tray mode) and shell behaviour are not affected.
+        if previous_sigint is not None:
+            try:
+                signal.signal(signal.SIGINT, previous_sigint)
+            except (ValueError, TypeError):
+                pass
         print(f"\n✅ Recording saved! ({chunk_count} chunks processed)")
         print(f"   Audio: {wav_path}")
         for fmt, path in output_paths.items():
@@ -167,12 +174,19 @@ class Recorder:
             paths["txt"] = os.path.join(output_dir, f"{session_name}.txt")
         if fmt in ("srt", "all"):
             paths["srt"] = os.path.join(output_dir, f"{session_name}.srt")
+        if fmt in ("json", "all"):
+            paths["json"] = os.path.join(output_dir, f"{session_name}.json")
         return paths
 
     def _save_transcript(self, filepath: str, segments: list[dict], fmt: str = None):
-        """Save transcript to file in txt or srt format."""
+        """Save transcript to file in txt, srt, or json format."""
         if fmt is None:
-            fmt = "srt" if filepath.endswith(".srt") else "txt"
+            if filepath.endswith(".srt"):
+                fmt = "srt"
+            elif filepath.endswith(".json"):
+                fmt = "json"
+            else:
+                fmt = "txt"
         with open(filepath, "w", encoding="utf-8") as f:
             if fmt == "srt":
                 for i, seg in enumerate(segments, 1):
@@ -182,6 +196,20 @@ class Recorder:
                     f.write(f"{i}\n")
                     f.write(f"{start} --> {end}\n")
                     f.write(f"[{speaker}] {seg['text']}\n\n")
+            elif fmt == "json":
+                payload = {
+                    "version": 1,
+                    "segments": [
+                        {
+                            "start": float(seg["start"]),
+                            "end": float(seg["end"]),
+                            "speaker": seg.get("speaker", "Unknown"),
+                            "text": seg["text"],
+                        }
+                        for seg in segments
+                    ],
+                }
+                json.dump(payload, f, ensure_ascii=False, indent=2)
             else:
                 for seg in segments:
                     ts = format_timestamp(seg["start"])
@@ -214,14 +242,10 @@ class Recorder:
         # Save transcript next to audio file
         base = os.path.splitext(filepath)[0]
         fmt = self.config.output_format
-        if fmt == "all":
-            for f in ("txt", "srt"):
-                path = f"{base}_transcript.{f}"
-                self._save_transcript(path, segments, f)
-                print(f"\n💾 Transcript saved to: {path}")
-        else:
-            path = f"{base}_transcript.{fmt}"
-            self._save_transcript(path, segments, fmt)
+        formats = ("txt", "srt", "json") if fmt == "all" else (fmt,)
+        for f in formats:
+            path = f"{base}_transcript.{f}"
+            self._save_transcript(path, segments, f)
             print(f"\n💾 Transcript saved to: {path}")
 
     def list_recordings(self):
@@ -256,7 +280,7 @@ class Recorder:
         devices = capture.list_devices()
         capture.cleanup()
 
-        print(f"\n🔊 Audio Devices:\n")
+        print("\n🔊 Audio Devices:\n")
         for d in devices:
             loopback = " [LOOPBACK]" if d["loopback"] else ""
             print(f"  [{d['index']}] {d['name']} (ch={d['channels']}, rate={d['rate']}){loopback}")
@@ -272,7 +296,7 @@ def main():
     start_parser = subparsers.add_parser("start", help="Start recording")
     start_parser.add_argument("--model", default="small", help="Whisper model size (tiny/base/small/medium/large-v2)")
     start_parser.add_argument("--output", default=None, help="Output directory")
-    start_parser.add_argument("--format", default="txt", choices=["txt", "srt", "all"], help="Transcript format (all = txt + srt)")
+    start_parser.add_argument("--format", default="txt", choices=["txt", "srt", "json", "all"], help="Transcript format (all = txt + srt + json)")
     start_parser.add_argument("--device", type=int, default=None, help="Audio device index")
     start_parser.add_argument("--language", default=None, help="Language code (e.g. en, hi)")
     start_parser.add_argument("--chunk", type=float, default=30.0, help="Chunk duration in seconds")
@@ -284,7 +308,7 @@ def main():
     trans_parser = subparsers.add_parser("transcribe", help="Transcribe an audio file")
     trans_parser.add_argument("file", help="Path to audio file")
     trans_parser.add_argument("--model", default="small", help="Whisper model size")
-    trans_parser.add_argument("--format", default="txt", choices=["txt", "srt", "all"])
+    trans_parser.add_argument("--format", default="txt", choices=["txt", "srt", "json", "all"])
 
     # devices
     subparsers.add_parser("devices", help="List audio devices")
@@ -293,7 +317,7 @@ def main():
     tray_parser = subparsers.add_parser("tray", help="Launch in system tray mode (Windows)")
     tray_parser.add_argument("--model", default="small", help="Whisper model size")
     tray_parser.add_argument("--output", default=None, help="Output directory")
-    tray_parser.add_argument("--format", default="all", choices=["txt", "srt", "all"])
+    tray_parser.add_argument("--format", default="all", choices=["txt", "srt", "json", "all"])
     tray_parser.add_argument("--language", default=None, help="Language code")
 
     args = parser.parse_args()

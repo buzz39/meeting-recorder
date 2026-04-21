@@ -1,0 +1,88 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "meeting-recorder"
+version = "0.1.0"
+description = "Lightweight CLI that records system audio (WASAPI loopback) and transcribes it locally with faster-whisper + speaker diarization."
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.10"
+authors = [{ name = "buzz39" }]
+keywords = ["whisper", "transcription", "meeting", "diarization", "wasapi", "audio", "speech-to-text"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: Microsoft :: Windows",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Multimedia :: Sound/Audio :: Capture/Recording",
+    "Topic :: Multimedia :: Sound/Audio :: Speech",
+]
+dependencies = [
+    "faster-whisper>=1.0.0,<2.0",
+    "numpy>=1.24.0,<3.0",
+]
+
+[project.optional-dependencies]
+# Windows audio capture + system tray
+windows = [
+    "pyaudiowpatch>=0.2.12,<1.0",
+    "pystray>=0.19.0,<1.0",
+    "Pillow>=10.0.0,<12.0",
+]
+# Neural speaker diarization (large download)
+pyannote = [
+    "pyannote.audio>=3.1.0,<4.0",
+    "torch>=2.0.0,<3.0",
+]
+# Developer tooling
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.6",
+]
+
+[project.scripts]
+meeting-recorder = "recorder:main"
+
+[project.urls]
+Homepage = "https://github.com/buzz39/meeting-recorder"
+Issues = "https://github.com/buzz39/meeting-recorder/issues"
+Changelog = "https://github.com/buzz39/meeting-recorder/blob/main/CHANGELOG.md"
+
+[tool.setuptools]
+# Flat layout — keep current top-level modules importable as before.
+py-modules = [
+    "recorder",
+    "config",
+    "transcriber",
+    "diarizer",
+    "audio_capture",
+    "tray_app",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+
+[tool.ruff.lint]
+# Conservative defaults so the existing code passes without churn.
+select = ["E", "F", "W", "I", "UP"]
+ignore = [
+    "E501",  # Line length is enforced via formatter, not linter.
+    "E402",  # Allow module-level imports after conditional logic.
+    "UP006", # Allow `dict`/`list` style typing already used.
+    "UP035", # Same — keep typing imports as-is.
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["E402", "F401"]

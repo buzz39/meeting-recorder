@@ -10,14 +10,28 @@ import numpy as np
 
 from config import Config
 
-# Try importing pyannote — graceful fallback if unavailable
-_PYANNOTE_AVAILABLE = False
-try:
-    import torch
-    from pyannote.audio import Pipeline as PyannotePipeline
-    _PYANNOTE_AVAILABLE = True
-except ImportError:
-    pass
+# Pyannote / torch imports are deferred — importing ``pyannote.audio`` is very
+# expensive (it transitively pulls in torch, torchaudio, lightning,
+# speechbrain, etc.) and can take minutes on a cold start. Only pay this cost
+# when the pyannote backend is actually selected.
+_PYANNOTE_AVAILABLE: bool | None = None  # None = not yet probed
+torch = None  # populated by _ensure_pyannote_imports() when available
+PyannotePipeline = None  # populated by _ensure_pyannote_imports() when available
+
+
+def _ensure_pyannote_imports() -> bool:
+    """Lazily import torch and pyannote.audio. Returns True if both are available."""
+    global _PYANNOTE_AVAILABLE, torch, PyannotePipeline
+    if _PYANNOTE_AVAILABLE is None:
+        try:
+            import torch as _torch
+            from pyannote.audio import Pipeline as _PyannotePipeline
+            torch = _torch
+            PyannotePipeline = _PyannotePipeline
+            _PYANNOTE_AVAILABLE = True
+        except ImportError:
+            _PYANNOTE_AVAILABLE = False
+    return _PYANNOTE_AVAILABLE
 
 
 class EnergyDiarizer:
@@ -163,6 +177,8 @@ class PyannoteDiarizer:
         token = self.config.hf_token
         if not token:
             raise RuntimeError("HF_TOKEN required for pyannote diarization")
+        if not _ensure_pyannote_imports():
+            raise RuntimeError("pyannote-audio is not installed")
         print("📦 Loading pyannote speaker-diarization-3.1 pipeline...")
         self._pipeline = PyannotePipeline.from_pretrained(
             "pyannote/speaker-diarization-3.1",
@@ -239,14 +255,14 @@ class Diarizer:
         self._init_backend()
 
     def _init_backend(self):
-        if _PYANNOTE_AVAILABLE and self.config.hf_token:
+        if self.config.hf_token and _ensure_pyannote_imports():
             print("🔊 Using pyannote-audio for speaker diarization")
             self._backend = PyannoteDiarizer(self.config)
         else:
-            if not _PYANNOTE_AVAILABLE:
-                reason = "pyannote-audio not installed"
-            else:
+            if not self.config.hf_token:
                 reason = "HF_TOKEN not set"
+            else:
+                reason = "pyannote-audio not installed"
             print(f"🔊 Using energy-based speaker diarization ({reason})")
             self._backend = EnergyDiarizer(self.config)
 

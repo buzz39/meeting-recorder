@@ -103,3 +103,42 @@ def test_save_transcript_handles_missing_speaker(recorder, tmp_path):
     path = tmp_path / "out.txt"
     recorder._save_transcript(str(path), segs)
     assert "Unknown: Anonymous" in path.read_text(encoding="utf-8")
+
+
+def test_save_html_viewer(recorder, segments, tmp_path):
+    path = tmp_path / "session.html"
+    recorder._save_html(str(path), segments, "session.wav", "session")
+    content = path.read_text(encoding="utf-8")
+    # References the audio file via a relative src
+    assert 'src="session.wav"' in content
+    # Title is rendered
+    assert "<title>session" in content
+    # Each segment is present with its start time as data-start, and a seek button
+    assert 'data-start="0.000"' in content
+    assert 'data-start="2.500"' in content
+    assert "Hello world." in content
+    assert "Second line." in content
+    assert "Speaker 1" in content and "Speaker 2" in content
+    # Has the click-to-seek script wiring
+    assert "currentTime" in content
+
+
+def test_save_html_escapes_html_in_segments(recorder, tmp_path):
+    segs = [{"start": 0.0, "end": 1.0, "text": "<script>alert(1)</script>", "speaker": "A&B"}]
+    path = tmp_path / "out.html"
+    recorder._save_html(str(path), segs, "x.wav", "t<>&")
+    content = path.read_text(encoding="utf-8")
+    # Raw segment text/speaker must not appear unescaped
+    assert "<script>alert(1)</script>" not in content
+    assert "&lt;script&gt;alert(1)&lt;/script&gt;" in content
+    assert "A&amp;B" in content
+    # Title is escaped too
+    assert "t&lt;&gt;&amp;" in content
+
+
+def test_save_html_handles_empty_segments(recorder, tmp_path):
+    path = tmp_path / "empty.html"
+    recorder._save_html(str(path), [], "x.wav", "empty")
+    content = path.read_text(encoding="utf-8")
+    assert "No transcript segments." in content
+    assert 'src="x.wav"' in content

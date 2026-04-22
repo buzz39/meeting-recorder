@@ -13,6 +13,7 @@ Usage:
 """
 
 import argparse
+import html
 import json
 import os
 import signal
@@ -161,6 +162,13 @@ class Recorder:
             print(f"💾 Saving {fmt} transcript to {path}")
             self._save_transcript(path, self._all_segments, fmt)
 
+        # Always emit a small self-contained HTML viewer alongside the WAV
+        # so users can play the audio and click any line to seek to it
+        # without needing extra tooling.
+        html_path = os.path.join(self.config.output_dir, f"{session_name}.html")
+        print(f"💾 Saving HTML viewer to {html_path}")
+        self._save_html(html_path, self._all_segments, os.path.basename(wav_path), session_name)
+
         capture.cleanup()
         # Restore the previous SIGINT handler so subsequent recordings (e.g.
         # in tray mode) and shell behaviour are not affected.
@@ -173,6 +181,7 @@ class Recorder:
         print(f"   Audio: {wav_path}")
         for fmt, path in output_paths.items():
             print(f"   Transcript ({fmt}): {path}")
+        print(f"   Viewer (html): {html_path}")
 
     def _get_output_paths(self, output_dir: str, session_name: str) -> dict[str, str]:
         """Return dict of format -> filepath based on config.output_format."""
@@ -224,6 +233,86 @@ class Recorder:
                     speaker = seg.get("speaker", "Unknown")
                     f.write(f"[{ts}] {speaker}: {seg['text']}\n")
 
+    def _save_html(self, filepath: str, segments: list[dict], audio_filename: str, title: str):
+        """Save a self-contained HTML viewer with an audio player and a
+        click-to-seek transcript.
+
+        ``audio_filename`` should be a path relative to ``filepath`` (typically
+        just the basename, since the HTML lives in the same directory as the
+        WAV). No external assets or network requests — everything is inline.
+        """
+        # Pre-build the segment rows so the template stays readable.
+        rows = []
+        for seg in segments:
+            start = float(seg["start"])
+            ts = format_timestamp(start)
+            speaker = html.escape(str(seg.get("speaker", "Unknown")))
+            text = html.escape(str(seg.get("text", "")))
+            rows.append(
+                f'    <li data-start="{start:.3f}">'
+                f'<button type="button" class="seek">[{ts}]</button> '
+                f'<span class="speaker">{speaker}:</span> '
+                f'<span class="text">{text}</span></li>'
+            )
+        rows_html = "\n".join(rows) if rows else '    <li class="empty">No transcript segments.</li>'
+
+        safe_title = html.escape(title)
+        safe_audio = html.escape(audio_filename, quote=True)
+
+        document = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>{safe_title} — Meeting Recorder</title>
+<style>
+ body {{ font-family: -apple-system, Segoe UI, Roboto, sans-serif; max-width: 820px; margin: 2em auto; padding: 0 1em; color: #222; }}
+ h1 {{ font-size: 1.2em; margin-bottom: 0.25em; }}
+ audio {{ width: 100%; margin: 0.75em 0 1em; }}
+ ol {{ list-style: none; padding: 0; }}
+ li {{ padding: 4px 6px; border-radius: 4px; line-height: 1.4; }}
+ li.active {{ background: #fff4c2; }}
+ button.seek {{ font-family: monospace; background: none; border: none; color: #0366d6; cursor: pointer; padding: 0; }}
+ button.seek:hover {{ text-decoration: underline; }}
+ .speaker {{ font-weight: 600; }}
+ .empty {{ color: #888; font-style: italic; }}
+</style>
+</head>
+<body>
+<h1>{safe_title}</h1>
+<audio id="player" controls preload="metadata" src="{safe_audio}"></audio>
+<ol id="segments">
+{rows_html}
+</ol>
+<script>
+ (function () {{
+  var player = document.getElementById("player");
+  var items = document.querySelectorAll("#segments li[data-start]");
+  items.forEach(function (li) {{
+   var btn = li.querySelector("button.seek");
+   if (!btn) return;
+   btn.addEventListener("click", function () {{
+    var t = parseFloat(li.getAttribute("data-start"));
+    if (!isNaN(t)) {{ player.currentTime = t; player.play(); }}
+   }});
+  }});
+  player.addEventListener("timeupdate", function () {{
+   var t = player.currentTime;
+   var current = null;
+   items.forEach(function (li) {{
+    var s = parseFloat(li.getAttribute("data-start"));
+    if (!isNaN(s) && s <= t) current = li;
+   }});
+   items.forEach(function (li) {{ li.classList.remove("active"); }});
+   if (current) current.classList.add("active");
+  }});
+ }})();
+</script>
+</body>
+</html>
+"""
+        with open(filepath, "w", encoding="utf-8") as f:
+            f.write(document)
+
     def transcribe_file(self, filepath: str):
         """Transcribe an existing audio file."""
         if not os.path.exists(filepath):
@@ -256,6 +345,16 @@ class Recorder:
             self._save_transcript(path, segments, f)
             print(f"\n💾 Transcript saved to: {path}")
 
+        # Also emit a click-to-seek HTML viewer next to the audio file.
+        html_path = f"{base}_transcript.html"
+        self._save_html(
+            html_path,
+            segments,
+            os.path.basename(filepath),
+            os.path.basename(base),
+        )
+        print(f"💾 Viewer saved to: {html_path}")
+
     def list_recordings(self):
         """List all past recordings."""
         if not os.path.exists(self.config.output_dir):
@@ -278,8 +377,10 @@ class Recorder:
             base = os.path.splitext(f)[0]
             has_txt = os.path.exists(os.path.join(self.config.output_dir, f"{base}.txt"))
             has_srt = os.path.exists(os.path.join(self.config.output_dir, f"{base}.srt"))
+            has_html = os.path.exists(os.path.join(self.config.output_dir, f"{base}.html"))
             transcript = " 📝" if (has_txt or has_srt) else ""
-            print(f"  {f}  ({size_mb:.1f} MB){transcript}")
+            viewer = " 🌐" if has_html else ""
+            print(f"  {f}  ({size_mb:.1f} MB){transcript}{viewer}")
 
     def list_devices(self):
         """List available audio devices."""

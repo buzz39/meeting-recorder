@@ -163,6 +163,7 @@ Each recording creates files in the output directory:
 - `meeting_YYYYMMDD_HHMMSS.txt` — transcript with timestamps and speaker labels
 - `meeting_YYYYMMDD_HHMMSS.srt` — SRT subtitles (if `--format srt` or `--format all`)
 - `meeting_YYYYMMDD_HHMMSS.json` — structured transcript (if `--format json` or `--format all`)
+- `meeting_YYYYMMDD_HHMMSS.html` — self-contained viewer: open in any browser to play the audio and click any line in the transcript to seek to that moment. No server, no extra dependencies.
 
 ### Sample TXT output
 

@@ -20,8 +20,12 @@ import threading
 from datetime import datetime
 
 from config import Config
-from diarizer import Diarizer
-from transcriber import Transcriber
+
+# Note: ``diarizer`` and ``transcriber`` are imported lazily inside
+# ``Recorder.__init__`` because they transitively pull in heavy ML libraries
+# (torch, pyannote.audio, faster-whisper). Keeping them out of module import
+# means ``python recorder.py tray`` can spin up the system-tray UI quickly
+# instead of paying minutes of import cost up front.
 
 
 def format_timestamp(seconds: float) -> str:
@@ -46,6 +50,10 @@ class Recorder:
     """Main recording orchestrator."""
 
     def __init__(self, config: Config):
+        # Imported lazily — see module-level note. These pull in heavy ML deps.
+        from diarizer import Diarizer
+        from transcriber import Transcriber
+
         self.config = config
         self.transcriber = Transcriber(config)
         self.diarizer = Diarizer(config)
@@ -341,6 +349,15 @@ def main():
     if hasattr(args, "chunk"):
         config.chunk_duration = args.chunk
 
+    # Tray mode does not need the heavy Recorder (and its ML deps) loaded
+    # up-front — the tray app constructs the Recorder lazily when the user
+    # actually clicks "Start Recording". Dispatch before instantiating it so
+    # the tray icon appears quickly.
+    if args.command == "tray":
+        from tray_app import run_tray
+        run_tray(config)
+        return
+
     recorder = Recorder(config)
 
     if args.command == "start":
@@ -351,9 +368,6 @@ def main():
         recorder.transcribe_file(args.file)
     elif args.command == "devices":
         recorder.list_devices()
-    elif args.command == "tray":
-        from tray_app import run_tray
-        run_tray(config)
 
 
 if __name__ == "__main__":

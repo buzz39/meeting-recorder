@@ -11,7 +11,7 @@ def is_cloud_transcription_provider(provider: str) -> bool:
     return provider in CLOUD_TRANSCRIPTION_PROVIDERS
 
 
-def _env_first(*names: str, default: str | None = None) -> str | None:
+def get_first_env_var(*names: str, default: str | None = None) -> str | None:
     """Return the first non-empty environment value, or default if none exist.
 
     Empty strings are treated as unset so accidental blank environment variables
@@ -49,10 +49,10 @@ class Config:
     transcription_provider: str = field(default_factory=lambda: os.environ.get("TRANSCRIPTION_PROVIDER", "local"))
     # API key priority: TRANSCRIPTION_API_KEY > AI_GATEWAY_API_KEY > OPENAI_API_KEY.
     transcription_api_key: str | None = field(
-        default_factory=lambda: _env_first("TRANSCRIPTION_API_KEY", "AI_GATEWAY_API_KEY", "OPENAI_API_KEY")
+        default_factory=lambda: get_first_env_var("TRANSCRIPTION_API_KEY", "AI_GATEWAY_API_KEY", "OPENAI_API_KEY")
     )
     transcription_model: str = field(
-        default_factory=lambda: _env_first(
+        default_factory=lambda: get_first_env_var(
             "TRANSCRIPTION_MODEL",
             "OPENAI_TRANSCRIBE_MODEL",
             default=DEFAULT_TRANSCRIPTION_MODEL,

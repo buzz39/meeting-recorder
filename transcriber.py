@@ -64,6 +64,8 @@ class Transcriber:
                     "A transcription API key is required for cloud providers. "
                     "Set TRANSCRIPTION_API_KEY, AI_GATEWAY_API_KEY, or OPENAI_API_KEY."
                 )
+            if self.provider == "compatible" and not self.config.transcription_base_url:
+                raise RuntimeError("--transcription-base-url or TRANSCRIPTION_BASE_URL is required for compatible provider")
             print(
                 f"☁️  Using {self.provider} transcription API "
                 f"({self._cloud_model()}); no local model to load."
@@ -171,6 +173,8 @@ class Transcriber:
             return self.config.transcription_base_url
         if self.provider == "vercel":
             return "https://ai-gateway.vercel.sh/v1"
+        if self.provider == "compatible":
+            raise RuntimeError("--transcription-base-url or TRANSCRIPTION_BASE_URL is required for compatible provider")
         return "https://api.openai.com/v1"
 
     def _transcribe_audio_cloud(self, audio_chunk: np.ndarray, chunk_offset: float) -> list[dict]:

@@ -94,6 +94,23 @@ def test_speaker_count_is_capped(cfg):
     assert len(d._speaker_profiles) <= d._max_speakers
 
 
+def test_exact_speaker_count_caps_energy_diarizer(cfg):
+    cfg.speaker_count = 2
+    cfg.max_speakers = 2
+    d = EnergyDiarizer(cfg)
+    sr = cfg.sample_rate
+    parts = []
+    segments = []
+    cursor = 0.0
+    for freq in (150, 800, 1600, 2800, 3600):
+        parts.append(_tone(freq, 0.5, sr, amplitude=0.5))
+        parts.append(_silence(1.0, sr))
+        segments.append({"start": cursor, "end": cursor + 0.5, "text": "x"})
+        cursor += 1.5
+    d.assign_speakers(np.concatenate(parts), segments)
+    assert len(d._speaker_profiles) <= 2
+
+
 def test_compute_features_handles_empty_audio(cfg):
     d = EnergyDiarizer(cfg)
     feats = d._compute_features(np.array([], dtype=np.float32))

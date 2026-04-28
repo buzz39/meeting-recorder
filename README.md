@@ -9,8 +9,10 @@ A lightweight Windows CLI tool that captures system audio (WASAPI loopback), tra
 
 ## Features
 
-- **Local transcription** — faster-whisper runs entirely on CPU (or auto-detected CUDA), no cloud API needed
+- **Local or cloud transcription** — faster-whisper runs offline, or use OpenAI's transcription API on low-RAM/CPU systems
 - **Speaker diarization** — pyannote-audio (accurate, neural) or energy-based (lightweight) fallback
+- **Speaker-count controls** — pass a known speaker count (for example `--speakers 2`) to avoid over-splitting voices
+- **Optional microphone mix** — capture your mic alongside WASAPI loopback so your own voice is clear in recordings
 - **Multiple output formats** — TXT timestamps, SRT subtitles, JSON, or all three
 - **System tray mode** — minimize to tray, start/stop recording from right-click menu (Windows)
 - **Real-time streaming** — see transcription as it happens during recording
@@ -109,8 +111,22 @@ python recorder.py start --format all
 # Custom output directory + language
 python recorder.py start --output C:\Users\you\meetings --language en
 
-# All options
-python recorder.py start --model small --format all --output ./my_meetings --language en --chunk 20
+# Two-person call: prevent extra Speaker 3/4 labels
+python recorder.py start --speaker-count 2
+
+# Include your own microphone in the recording/transcript (loopback alone captures only remote audio)
+python recorder.py start --include-mic --mic-gain 1.5
+
+# Use cloud transcription to avoid local Whisper downloads/cold start
+set OPENAI_API_KEY=sk_your_key_here
+python recorder.py start --provider openai --transcription-model whisper-1
+
+# Use Vercel AI Gateway / compatible APIs by changing the provider and model
+set AI_GATEWAY_API_KEY=your_gateway_key_here
+python recorder.py start --provider vercel --transcription-model openai/whisper-1
+
+# All common options
+python recorder.py start --model small --format all --output ./my_meetings --language en --chunk 20 --speaker-count 2 --include-mic
 ```
 
 Press **Ctrl+C** to stop — recording and transcript are saved automatically.
@@ -140,6 +156,8 @@ This minimizes to the system tray with:
 python recorder.py transcribe path\to\meeting.wav
 python recorder.py transcribe meeting.wav --model small --format srt
 python recorder.py transcribe meeting.wav --format all
+python recorder.py transcribe meeting.wav --provider openai
+python recorder.py transcribe meeting.wav --provider vercel --transcription-model openai/whisper-1
 ```
 
 ### List past recordings
@@ -155,6 +173,62 @@ python recorder.py devices
 ```
 
 Use `--device <index>` with `start` to pick a specific loopback device.
+Use `--mic-device <index>` with `--include-mic` to pick a specific microphone.
+
+### Improving speaker labels
+
+If you know the meeting has two speakers, pass:
+
+```bash
+python recorder.py start --speaker-count 2
+```
+
+This forwards the exact count to pyannote when available and caps the lightweight
+energy diarizer at two labels, preventing accidental `Speaker 3`, `Speaker 4`,
+etc. For larger meetings where the exact count is unknown, use `--max-speakers N`.
+
+### Making your own voice clear
+
+WASAPI loopback records the audio playing through speakers/headphones. Most
+meeting apps do **not** play your own microphone back to you, so loopback alone
+captures the other participants clearly but may miss or weaken your voice.
+
+Enable microphone mixing:
+
+```bash
+python recorder.py devices
+python recorder.py start --include-mic --mic-gain 1.5
+python recorder.py start --include-mic --mic-device 3
+```
+
+When microphone mixing is enabled, the saved WAV is a mono 16 kHz mix of the
+loopback audio and your microphone.
+
+### Cloud transcription for low-resource systems
+
+Cloud transcription avoids local Whisper model downloads, high RAM/CPU use, and
+local model cold start. Set your API key and select a cloud provider:
+
+```bash
+set OPENAI_API_KEY=sk_your_key_here       # Windows CMD
+$env:OPENAI_API_KEY = "sk_your_key_here"  # PowerShell
+python recorder.py start --provider openai --transcription-model whisper-1
+```
+
+For Vercel AI Gateway or other OpenAI-compatible transcription endpoints:
+
+```bash
+set AI_GATEWAY_API_KEY=your_gateway_key_here
+python recorder.py start --provider vercel --transcription-model openai/whisper-1
+
+set TRANSCRIPTION_API_KEY=your_key_here
+python recorder.py start --provider compatible --transcription-base-url https://example.com/v1 --transcription-model provider/model
+```
+
+You can also set `TRANSCRIPTION_PROVIDER`, `TRANSCRIPTION_MODEL`,
+`TRANSCRIPTION_API_KEY`, and `TRANSCRIPTION_BASE_URL` as environment variables.
+The older `OPENAI_API_KEY` and `OPENAI_TRANSCRIBE_MODEL` variables still work for
+OpenAI-compatible setups.
 
 ## Output
 

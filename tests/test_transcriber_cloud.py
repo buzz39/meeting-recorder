@@ -2,7 +2,7 @@ import json
 
 import numpy as np
 
-from config import Config
+from config import DEFAULT_TRANSCRIPTION_MODEL, Config, _env_first
 from transcriber import Transcriber, _multipart_form_data, _transcription_endpoint
 
 
@@ -37,6 +37,22 @@ def test_legacy_openai_model_is_used_when_new_model_is_default():
     transcriber = Transcriber(cfg)
 
     assert transcriber._cloud_model() == "legacy-whisper"
+
+
+def test_cloud_model_has_default_fallback():
+    cfg = Config()
+    cfg.transcription_model = None
+    cfg.openai_model = None
+    transcriber = Transcriber(cfg)
+
+    assert transcriber._cloud_model() == DEFAULT_TRANSCRIPTION_MODEL
+
+
+def test_env_first_skips_empty_values(monkeypatch):
+    monkeypatch.setenv("TRANSCRIPTION_MODEL", "")
+    monkeypatch.setenv("OPENAI_TRANSCRIBE_MODEL", "fallback-model")
+
+    assert _env_first("TRANSCRIPTION_MODEL", "OPENAI_TRANSCRIBE_MODEL") == "fallback-model"
 
 
 def test_multipart_form_data_contains_fields_and_file(tmp_path):

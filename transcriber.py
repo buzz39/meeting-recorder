@@ -160,7 +160,7 @@ class Transcriber:
             and self.config.openai_model != DEFAULT_TRANSCRIPTION_MODEL
         ):
             return self.config.openai_model
-        return self.config.transcription_model or self.config.openai_model
+        return self.config.transcription_model or self.config.openai_model or DEFAULT_TRANSCRIPTION_MODEL
 
     def _cloud_base_url(self) -> str:
         if self.config.transcription_base_url:

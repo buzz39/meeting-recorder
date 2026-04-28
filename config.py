@@ -11,6 +11,14 @@ def is_cloud_transcription_provider(provider: str) -> bool:
     return provider in CLOUD_TRANSCRIPTION_PROVIDERS
 
 
+def _env_first(*names: str, default: str | None = None) -> str | None:
+    for name in names:
+        value = os.environ.get(name)
+        if value:
+            return value
+    return default
+
+
 @dataclass
 class Config:
     # Whisper model size — tradeoffs:
@@ -36,15 +44,14 @@ class Config:
     transcription_provider: str = field(default_factory=lambda: os.environ.get("TRANSCRIPTION_PROVIDER", "local"))
     # API key priority: TRANSCRIPTION_API_KEY > AI_GATEWAY_API_KEY > OPENAI_API_KEY.
     transcription_api_key: str | None = field(
-        default_factory=lambda: (
-            os.environ.get("TRANSCRIPTION_API_KEY")
-            or os.environ.get("AI_GATEWAY_API_KEY")
-            or os.environ.get("OPENAI_API_KEY")
-        )
+        default_factory=lambda: _env_first("TRANSCRIPTION_API_KEY", "AI_GATEWAY_API_KEY", "OPENAI_API_KEY")
     )
     transcription_model: str = field(
-        default_factory=lambda: os.environ.get("TRANSCRIPTION_MODEL")
-        or os.environ.get("OPENAI_TRANSCRIBE_MODEL", DEFAULT_TRANSCRIPTION_MODEL)
+        default_factory=lambda: _env_first(
+            "TRANSCRIPTION_MODEL",
+            "OPENAI_TRANSCRIBE_MODEL",
+            default=DEFAULT_TRANSCRIPTION_MODEL,
+        )
     )
     transcription_base_url: str | None = field(default_factory=lambda: os.environ.get("TRANSCRIPTION_BASE_URL"))
     openai_api_key: str | None = field(default_factory=lambda: os.environ.get("OPENAI_API_KEY"))

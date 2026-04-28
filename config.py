@@ -12,7 +12,11 @@ def is_cloud_transcription_provider(provider: str) -> bool:
 
 
 def _env_first(*names: str, default: str | None = None) -> str | None:
-    """Return the first non-empty environment value, or default if none exist."""
+    """Return the first non-empty environment value, or default if none exist.
+
+    Empty strings are treated as unset so accidental blank environment variables
+    do not block later fallbacks.
+    """
     for name in names:
         value = os.environ.get(name)
         if value:

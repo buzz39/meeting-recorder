@@ -155,6 +155,8 @@ class Transcriber:
         return self.config.transcription_api_key or self.config.openai_api_key
 
     def _cloud_model(self) -> str:
+        # Backwards compatibility: code written before the generic cloud
+        # provider setting may still set only Config.openai_model directly.
         if (
             self.config.transcription_model == DEFAULT_TRANSCRIPTION_MODEL
             and self.config.openai_model != DEFAULT_TRANSCRIPTION_MODEL
@@ -256,7 +258,11 @@ def _wav_duration(filepath: str) -> float:
 
 
 def _transcription_endpoint(base_url: str) -> str:
-    """Build the transcription endpoint from either a base URL or full endpoint."""
+    """Build the transcription endpoint from either a base URL or full endpoint.
+
+    If the normalized URL already ends exactly at ``/audio/transcriptions``,
+    it is treated as a complete endpoint and returned unchanged.
+    """
     normalized = base_url.rstrip("/")
     if normalized.endswith("/audio/transcriptions"):
         return normalized

@@ -481,6 +481,8 @@ def main():
         config.transcription_provider = args.provider
     if hasattr(args, "transcription_model") and args.transcription_model:
         config.transcription_model = args.transcription_model
+        # Keep the legacy openai_model alias in sync for callers that still
+        # construct Config directly or use the older --openai-model flag.
         config.openai_model = args.transcription_model
     if hasattr(args, "transcription_base_url") and args.transcription_base_url:
         config.transcription_base_url = args.transcription_base_url

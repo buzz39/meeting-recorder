@@ -27,6 +27,7 @@ class Config:
     # Transcription provider: local (faster-whisper), openai, vercel, or compatible.
     # Cloud mode avoids local model downloads/cold starts on low-resource PCs.
     transcription_provider: str = field(default_factory=lambda: os.environ.get("TRANSCRIPTION_PROVIDER", "local"))
+    # API key priority: TRANSCRIPTION_API_KEY > AI_GATEWAY_API_KEY > OPENAI_API_KEY.
     transcription_api_key: str | None = field(
         default_factory=lambda: (
             os.environ.get("TRANSCRIPTION_API_KEY")

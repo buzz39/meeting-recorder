@@ -149,6 +149,9 @@ class Transcriber:
         return self.provider in ("openai", "vercel", "compatible")
 
     def _cloud_api_key(self) -> str | None:
+        # Config.transcription_api_key already applies the env fallback order
+        # TRANSCRIPTION_API_KEY > AI_GATEWAY_API_KEY > OPENAI_API_KEY. The
+        # openai_api_key fallback is kept for legacy direct Config mutation.
         return self.config.transcription_api_key or self.config.openai_api_key
 
     def _cloud_model(self) -> str:

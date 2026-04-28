@@ -115,3 +115,7 @@ def test_transcription_endpoint_accepts_full_endpoint():
     endpoint = "https://example.com/v1/audio/transcriptions"
 
     assert _transcription_endpoint(endpoint) == endpoint
+
+
+def test_transcription_endpoint_handles_trailing_slash_base_url():
+    assert _transcription_endpoint("https://example.com/v1/") == "https://example.com/v1/audio/transcriptions"

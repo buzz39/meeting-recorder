@@ -4,6 +4,11 @@ import os
 from dataclasses import dataclass, field
 
 DEFAULT_TRANSCRIPTION_MODEL = "whisper-1"
+CLOUD_TRANSCRIPTION_PROVIDERS = ("openai", "vercel", "compatible")
+
+
+def is_cloud_transcription_provider(provider: str) -> bool:
+    return provider in CLOUD_TRANSCRIPTION_PROVIDERS
 
 
 @dataclass

@@ -16,7 +16,7 @@ from urllib.error import HTTPError, URLError
 
 import numpy as np
 
-from config import DEFAULT_TRANSCRIPTION_MODEL, Config
+from config import DEFAULT_TRANSCRIPTION_MODEL, Config, is_cloud_transcription_provider
 
 
 def _detect_device_and_compute(preferred_compute: str) -> tuple[str, str]:
@@ -146,7 +146,7 @@ class Transcriber:
         return results
 
     def _is_cloud_provider(self) -> bool:
-        return self.provider in ("openai", "vercel", "compatible")
+        return is_cloud_transcription_provider(self.provider)
 
     def _cloud_api_key(self) -> str | None:
         # Config.transcription_api_key already applies the env fallback order

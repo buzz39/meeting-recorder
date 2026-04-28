@@ -20,7 +20,7 @@ import signal
 import threading
 from datetime import datetime
 
-from config import Config
+from config import Config, is_cloud_transcription_provider
 
 # Note: ``diarizer`` and ``transcriber`` are imported lazily inside
 # ``Recorder.__init__`` because they transitively pull in heavy ML libraries
@@ -45,10 +45,6 @@ def format_srt_timestamp(seconds: float) -> str:
     s = int(seconds % 60)
     ms = int((seconds % 1) * 1000)
     return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"
-
-
-def is_cloud_provider(provider: str) -> bool:
-    return provider in ("openai", "vercel", "compatible")
 
 
 class Recorder:
@@ -81,7 +77,7 @@ class Recorder:
         print("=" * 60)
         print("🎙️  Meeting Recorder")
         provider = self.config.transcription_provider
-        model = self.config.transcription_model if is_cloud_provider(provider) else self.config.model_size
+        model = self.config.transcription_model if is_cloud_transcription_provider(provider) else self.config.model_size
         print(f"   Provider: {provider} | Model: {model} | Format: {self.config.output_format}")
         if self.config.speaker_count:
             print(f"   Speakers: fixed at {self.config.speaker_count}")

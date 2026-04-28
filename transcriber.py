@@ -224,7 +224,7 @@ def _wav_duration(filepath: str) -> float:
 
 
 def _multipart_form_data(fields: dict[str, str], file_field: str, filepath: str) -> tuple[bytes, str]:
-    boundary = f"----meeting-recorder-{uuid.uuid4().hex}"
+    boundary = f"----form-boundary-{uuid.uuid4().hex}"
     parts = []
     for name, value in fields.items():
         parts.extend([

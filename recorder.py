@@ -480,7 +480,7 @@ def main():
         config.openai_model = args.openai_model
     if hasattr(args, "speakers") and args.speakers is not None:
         if args.speakers <= 0:
-            parser.error("--speaker-count/--speakers must be greater than 0")
+            parser.error("--speaker-count must be greater than 0 (--speakers is an alias)")
         config.speaker_count = args.speakers
         config.max_speakers = args.speakers
     elif hasattr(args, "max_speakers"):

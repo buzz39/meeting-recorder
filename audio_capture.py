@@ -78,6 +78,7 @@ class AudioCapture:
         self._lock = threading.Lock()
         self._device_info = None
         self._mic_device_info = None
+        self._apply_microphone_gain = False
 
     def find_loopback_device(self) -> dict:
         """Find the default WASAPI loopback device.
@@ -140,7 +141,7 @@ class AudioCapture:
                 if self._mic_device_info and self._mic_device_info["maxInputChannels"] > 1:
                     channels = self._mic_device_info["maxInputChannels"]
                     audio_data = audio_data.reshape(-1, channels).mean(axis=1)
-                if self.config.microphone_gain != 1.0:
+                if self._apply_microphone_gain:
                     audio_data = audio_data * float(self.config.microphone_gain)
                 self.mic_queue.put(audio_data)
         return (in_data, pyaudio.paContinue)
@@ -181,6 +182,7 @@ class AudioCapture:
             mic_rate = int(self._mic_device_info["defaultSampleRate"])
             if mic_channels <= 0:
                 raise RuntimeError("Selected microphone device has no input channels")
+            self._apply_microphone_gain = self.config.microphone_gain != 1.0
             print(f"🎙️  Mixing microphone: {self._mic_device_info['name']}")
             print(f"   Channels: {mic_channels}, Rate: {mic_rate}Hz, Gain: {self.config.microphone_gain:g}x")
             self.mic_stream = self.audio.open(
@@ -303,7 +305,12 @@ class AudioCapture:
                     mic_audio = _resample_audio(mic_audio, mic_rate, self.config.sample_rate)
                 length_diff = abs(len(mic_audio) - len(audio))
                 if length_diff > max(1, int(len(audio) * _TIMING_DRIFT_WARNING_RATIO)):
-                    print("⚠️  Microphone/loopback timing drift detected; mixed audio may be slightly misaligned.")
+                    drift_pct = (length_diff / max(len(audio), 1)) * 100
+                    print(
+                        "⚠️  Microphone/loopback timing drift detected "
+                        f"({drift_pct:.1f}% of chunk); mixed audio may be slightly misaligned. "
+                        "Check device sample rates or try a longer --chunk."
+                    )
                 if len(mic_audio) < len(audio):
                     mic_audio = np.pad(mic_audio, (0, len(audio) - len(mic_audio)))
                 else:

@@ -29,6 +29,16 @@ def test_vercel_provider_load_model_does_not_require_local_whisper():
     assert transcriber.model is None
 
 
+def test_legacy_openai_model_is_used_when_new_model_is_default():
+    cfg = Config()
+    cfg.transcription_provider = "openai"
+    cfg.transcription_api_key = "test-key"
+    cfg.openai_model = "legacy-whisper"
+    transcriber = Transcriber(cfg)
+
+    assert transcriber._cloud_model() == "legacy-whisper"
+
+
 def test_multipart_form_data_contains_fields_and_file(tmp_path):
     audio = tmp_path / "audio.wav"
     audio.write_bytes(b"RIFF")

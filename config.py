@@ -3,6 +3,8 @@
 import os
 from dataclasses import dataclass, field
 
+DEFAULT_TRANSCRIPTION_MODEL = "whisper-1"
+
 
 @dataclass
 class Config:
@@ -37,11 +39,11 @@ class Config:
     )
     transcription_model: str = field(
         default_factory=lambda: os.environ.get("TRANSCRIPTION_MODEL")
-        or os.environ.get("OPENAI_TRANSCRIBE_MODEL", "whisper-1")
+        or os.environ.get("OPENAI_TRANSCRIBE_MODEL", DEFAULT_TRANSCRIPTION_MODEL)
     )
     transcription_base_url: str | None = field(default_factory=lambda: os.environ.get("TRANSCRIPTION_BASE_URL"))
     openai_api_key: str | None = field(default_factory=lambda: os.environ.get("OPENAI_API_KEY"))
-    openai_model: str = field(default_factory=lambda: os.environ.get("OPENAI_TRANSCRIBE_MODEL", "whisper-1"))
+    openai_model: str = field(default_factory=lambda: os.environ.get("OPENAI_TRANSCRIBE_MODEL", DEFAULT_TRANSCRIPTION_MODEL))
 
     # Audio chunk duration in seconds for processing
     chunk_duration: float = 30.0

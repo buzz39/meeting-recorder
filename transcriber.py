@@ -16,7 +16,7 @@ from urllib.error import HTTPError, URLError
 
 import numpy as np
 
-from config import Config
+from config import DEFAULT_TRANSCRIPTION_MODEL, Config
 
 
 def _detect_device_and_compute(preferred_compute: str) -> tuple[str, str]:
@@ -155,6 +155,11 @@ class Transcriber:
         return self.config.transcription_api_key or self.config.openai_api_key
 
     def _cloud_model(self) -> str:
+        if (
+            self.config.transcription_model == DEFAULT_TRANSCRIPTION_MODEL
+            and self.config.openai_model != DEFAULT_TRANSCRIPTION_MODEL
+        ):
+            return self.config.openai_model
         return self.config.transcription_model or self.config.openai_model
 
     def _cloud_base_url(self) -> str:

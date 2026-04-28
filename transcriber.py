@@ -49,7 +49,7 @@ def _detect_device_and_compute(preferred_compute: str) -> tuple[str, str]:
 
 
 class Transcriber:
-    """Wraps local faster-whisper or OpenAI cloud speech-to-text."""
+    """Wraps local faster-whisper or cloud speech-to-text."""
 
     def __init__(self, config: Config):
         self.config = config
@@ -58,10 +58,16 @@ class Transcriber:
 
     def load_model(self):
         """Load the Whisper model. Call once at startup."""
-        if self.provider == "openai":
-            if not self.config.openai_api_key:
-                raise RuntimeError("OPENAI_API_KEY is required when transcription_provider is set to openai")
-            print(f"☁️  Using OpenAI transcription API ({self.config.openai_model}); no local model to load.")
+        if self._is_cloud_provider():
+            if not self._cloud_api_key():
+                raise RuntimeError(
+                    "A transcription API key is required for cloud providers. "
+                    "Set TRANSCRIPTION_API_KEY, AI_GATEWAY_API_KEY, or OPENAI_API_KEY."
+                )
+            print(
+                f"☁️  Using {self.provider} transcription API "
+                f"({self._cloud_model()}); no local model to load."
+            )
             return
         if self.provider != "local":
             raise RuntimeError(f"Unsupported transcription provider: {self.provider}")
@@ -95,8 +101,8 @@ class Transcriber:
         if self.model is None:
             self.load_model()
 
-        if self.provider == "openai":
-            return self._transcribe_audio_openai(audio_chunk, chunk_offset)
+        if self._is_cloud_provider():
+            return self._transcribe_audio_cloud(audio_chunk, chunk_offset)
 
         segments, info = self.model.transcribe(
             audio_chunk,
@@ -120,8 +126,8 @@ class Transcriber:
         if self.model is None:
             self.load_model()
 
-        if self.provider == "openai":
-            return self._transcribe_file_openai(filepath)
+        if self._is_cloud_provider():
+            return self._transcribe_file_cloud(filepath)
 
         segments, info = self.model.transcribe(
             filepath,
@@ -139,12 +145,28 @@ class Transcriber:
             })
         return results
 
-    def _transcribe_audio_openai(self, audio_chunk: np.ndarray, chunk_offset: float) -> list[dict]:
+    def _is_cloud_provider(self) -> bool:
+        return self.provider in ("openai", "vercel", "compatible")
+
+    def _cloud_api_key(self) -> str | None:
+        return self.config.transcription_api_key or self.config.openai_api_key
+
+    def _cloud_model(self) -> str:
+        return self.config.transcription_model or self.config.openai_model
+
+    def _cloud_base_url(self) -> str:
+        if self.config.transcription_base_url:
+            return self.config.transcription_base_url
+        if self.provider == "vercel":
+            return "https://ai-gateway.vercel.sh/v1"
+        return "https://api.openai.com/v1"
+
+    def _transcribe_audio_cloud(self, audio_chunk: np.ndarray, chunk_offset: float) -> list[dict]:
         with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
             tmp_path = tmp.name
         try:
             _write_mono_wav(tmp_path, audio_chunk, self.config.sample_rate)
-            segments = self._transcribe_file_openai(tmp_path)
+            segments = self._transcribe_file_cloud(tmp_path)
         finally:
             try:
                 os.remove(tmp_path)
@@ -156,8 +178,8 @@ class Transcriber:
             seg["end"] += chunk_offset
         return segments
 
-    def _transcribe_file_openai(self, filepath: str) -> list[dict]:
-        payload = self._openai_transcription_request(filepath)
+    def _transcribe_file_cloud(self, filepath: str) -> list[dict]:
+        payload = self._cloud_transcription_request(filepath)
         segments = payload.get("segments") or []
         if segments:
             return [
@@ -175,9 +197,9 @@ class Transcriber:
             return []
         return [{"start": 0.0, "end": max(_wav_duration(filepath), 0.001), "text": text}]
 
-    def _openai_transcription_request(self, filepath: str) -> dict:
+    def _cloud_transcription_request(self, filepath: str) -> dict:
         fields = {
-            "model": self.config.openai_model,
+            "model": self._cloud_model(),
             "response_format": "verbose_json",
         }
         if self.config.language:
@@ -185,10 +207,10 @@ class Transcriber:
 
         body, content_type = _multipart_form_data(fields, "file", filepath)
         req = request.Request(
-            "https://api.openai.com/v1/audio/transcriptions",
+            _transcription_endpoint(self._cloud_base_url()),
             data=body,
             headers={
-                "Authorization": f"Bearer {self.config.openai_api_key}",
+                "Authorization": f"Bearer {self._cloud_api_key()}",
                 "Content-Type": content_type,
             },
             method="POST",
@@ -200,9 +222,9 @@ class Transcriber:
                 return json.loads(response.read().decode("utf-8"))
         except HTTPError as e:
             detail = e.read().decode("utf-8", errors="replace")
-            raise RuntimeError(f"OpenAI transcription failed ({e.code}): {detail}") from e
+            raise RuntimeError(f"{self.provider} transcription failed ({e.code}): {detail}") from e
         except URLError as e:
-            raise RuntimeError(f"OpenAI transcription request failed: {e}") from e
+            raise RuntimeError(f"{self.provider} transcription request failed: {e}") from e
 
 
 def _write_mono_wav(filepath: str, audio: np.ndarray, sample_rate: int):
@@ -221,6 +243,13 @@ def _wav_duration(filepath: str) -> float:
             return wf.getnframes() / float(wf.getframerate())
     except (wave.Error, OSError, EOFError):
         return 0.0
+
+
+def _transcription_endpoint(base_url: str) -> str:
+    normalized = base_url.rstrip("/")
+    if normalized.endswith("/audio/transcriptions"):
+        return normalized
+    return f"{normalized}/audio/transcriptions"
 
 
 def _multipart_form_data(fields: dict[str, str], file_field: str, filepath: str) -> tuple[bytes, str]:

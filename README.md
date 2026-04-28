@@ -119,7 +119,11 @@ python recorder.py start --include-mic --mic-gain 1.5
 
 # Use cloud transcription to avoid local Whisper downloads/cold start
 set OPENAI_API_KEY=sk_your_key_here
-python recorder.py start --provider openai --openai-model whisper-1
+python recorder.py start --provider openai --transcription-model whisper-1
+
+# Use Vercel AI Gateway / compatible APIs by changing the provider and model
+set AI_GATEWAY_API_KEY=your_gateway_key_here
+python recorder.py start --provider vercel --transcription-model openai/whisper-1
 
 # All common options
 python recorder.py start --model small --format all --output ./my_meetings --language en --chunk 20 --speaker-count 2 --include-mic
@@ -153,6 +157,7 @@ python recorder.py transcribe path\to\meeting.wav
 python recorder.py transcribe meeting.wav --model small --format srt
 python recorder.py transcribe meeting.wav --format all
 python recorder.py transcribe meeting.wav --provider openai
+python recorder.py transcribe meeting.wav --provider vercel --transcription-model openai/whisper-1
 ```
 
 ### List past recordings
@@ -202,16 +207,28 @@ loopback audio and your microphone.
 ### Cloud transcription for low-resource systems
 
 Cloud transcription avoids local Whisper model downloads, high RAM/CPU use, and
-local model cold start. Set your API key and select the OpenAI provider:
+local model cold start. Set your API key and select a cloud provider:
 
 ```bash
 set OPENAI_API_KEY=sk_your_key_here       # Windows CMD
 $env:OPENAI_API_KEY = "sk_your_key_here"  # PowerShell
-python recorder.py start --provider openai --openai-model whisper-1
+python recorder.py start --provider openai --transcription-model whisper-1
 ```
 
-You can also set `TRANSCRIPTION_PROVIDER=openai` and
-`OPENAI_TRANSCRIBE_MODEL=whisper-1` as environment variables.
+For Vercel AI Gateway or other OpenAI-compatible transcription endpoints:
+
+```bash
+set AI_GATEWAY_API_KEY=your_gateway_key_here
+python recorder.py start --provider vercel --transcription-model openai/whisper-1
+
+set TRANSCRIPTION_API_KEY=your_key_here
+python recorder.py start --provider compatible --transcription-base-url https://example.com/v1 --transcription-model provider/model
+```
+
+You can also set `TRANSCRIPTION_PROVIDER`, `TRANSCRIPTION_MODEL`,
+`TRANSCRIPTION_API_KEY`, and `TRANSCRIPTION_BASE_URL` as environment variables.
+The older `OPENAI_API_KEY` and `OPENAI_TRANSCRIBE_MODEL` variables still work for
+OpenAI-compatible setups.
 
 ## Output
 

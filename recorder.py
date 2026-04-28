@@ -77,7 +77,7 @@ class Recorder:
         print("=" * 60)
         print("🎙️  Meeting Recorder")
         provider = self.config.transcription_provider
-        model = self.config.openai_model if provider == "openai" else self.config.model_size
+        model = self.config.transcription_model if provider in ("openai", "vercel", "compatible") else self.config.model_size
         print(f"   Provider: {provider} | Model: {model} | Format: {self.config.output_format}")
         if self.config.speaker_count:
             print(f"   Speakers: fixed at {self.config.speaker_count}")
@@ -417,8 +417,9 @@ def main():
     start_parser.add_argument("--device", type=int, default=None, help="Audio device index")
     start_parser.add_argument("--language", default=None, help="Language code (e.g. en, hi)")
     start_parser.add_argument("--chunk", type=float, default=30.0, help="Chunk duration in seconds")
-    start_parser.add_argument("--provider", default="local", choices=["local", "openai"], help="Transcription provider: local=faster-whisper, openai=cloud API")
-    start_parser.add_argument("--openai-model", default=None, help="OpenAI transcription model (default: OPENAI_TRANSCRIBE_MODEL or whisper-1)")
+    start_parser.add_argument("--provider", default="local", choices=["local", "openai", "vercel", "compatible"], help="Transcription provider: local=faster-whisper, openai/vercel/compatible=cloud API")
+    start_parser.add_argument("--transcription-model", "--openai-model", dest="transcription_model", default=None, help="Cloud transcription model (default: TRANSCRIPTION_MODEL or whisper-1)")
+    start_parser.add_argument("--transcription-base-url", default=None, help="Base URL for vercel/compatible cloud transcription API")
     start_parser.add_argument("--speaker-count", "--speakers", dest="speakers", type=int, default=None, help="Exact number of speakers, e.g. 2 for two-person meetings")
     start_parser.add_argument("--max-speakers", type=int, default=10, help="Maximum speaker labels when exact count is unknown")
     start_parser.add_argument("--include-mic", action="store_true", help="Mix your microphone with loopback audio")
@@ -433,8 +434,9 @@ def main():
     trans_parser.add_argument("file", help="Path to audio file")
     trans_parser.add_argument("--model", default="small", help="Whisper model size")
     trans_parser.add_argument("--format", default="txt", choices=["txt", "srt", "json", "all"])
-    trans_parser.add_argument("--provider", default="local", choices=["local", "openai"], help="Transcription provider: local=faster-whisper, openai=cloud API")
-    trans_parser.add_argument("--openai-model", default=None, help="OpenAI transcription model")
+    trans_parser.add_argument("--provider", default="local", choices=["local", "openai", "vercel", "compatible"], help="Transcription provider: local=faster-whisper, openai/vercel/compatible=cloud API")
+    trans_parser.add_argument("--transcription-model", "--openai-model", dest="transcription_model", default=None, help="Cloud transcription model")
+    trans_parser.add_argument("--transcription-base-url", default=None, help="Base URL for vercel/compatible cloud transcription API")
     trans_parser.add_argument("--language", default=None, help="Language code")
 
     # devices
@@ -446,8 +448,9 @@ def main():
     tray_parser.add_argument("--output", default=None, help="Output directory")
     tray_parser.add_argument("--format", default="all", choices=["txt", "srt", "json", "all"])
     tray_parser.add_argument("--language", default=None, help="Language code")
-    tray_parser.add_argument("--provider", default="local", choices=["local", "openai"], help="Transcription provider: local=faster-whisper, openai=cloud API")
-    tray_parser.add_argument("--openai-model", default=None, help="OpenAI transcription model")
+    tray_parser.add_argument("--provider", default="local", choices=["local", "openai", "vercel", "compatible"], help="Transcription provider: local=faster-whisper, openai/vercel/compatible=cloud API")
+    tray_parser.add_argument("--transcription-model", "--openai-model", dest="transcription_model", default=None, help="Cloud transcription model")
+    tray_parser.add_argument("--transcription-base-url", default=None, help="Base URL for vercel/compatible cloud transcription API")
     tray_parser.add_argument("--speaker-count", "--speakers", dest="speakers", type=int, default=None, help="Exact number of speakers")
     tray_parser.add_argument("--max-speakers", type=int, default=10, help="Maximum speaker labels")
     tray_parser.add_argument("--include-mic", action="store_true", help="Mix your microphone with loopback audio")
@@ -476,8 +479,11 @@ def main():
         config.chunk_duration = args.chunk
     if hasattr(args, "provider"):
         config.transcription_provider = args.provider
-    if hasattr(args, "openai_model") and args.openai_model:
-        config.openai_model = args.openai_model
+    if hasattr(args, "transcription_model") and args.transcription_model:
+        config.transcription_model = args.transcription_model
+        config.openai_model = args.transcription_model
+    if hasattr(args, "transcription_base_url") and args.transcription_base_url:
+        config.transcription_base_url = args.transcription_base_url
     if hasattr(args, "speakers") and args.speakers is not None:
         if args.speakers <= 0:
             parser.error("--speaker-count (or --speakers) must be greater than 0")

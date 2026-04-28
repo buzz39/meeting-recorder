@@ -24,9 +24,21 @@ class Config:
     # Set via HF_TOKEN env var or here directly
     hf_token: str | None = field(default_factory=lambda: os.environ.get("HF_TOKEN"))
 
-    # Transcription provider: local (faster-whisper) or openai (cloud API).
+    # Transcription provider: local (faster-whisper), openai, vercel, or compatible.
     # Cloud mode avoids local model downloads/cold starts on low-resource PCs.
     transcription_provider: str = field(default_factory=lambda: os.environ.get("TRANSCRIPTION_PROVIDER", "local"))
+    transcription_api_key: str | None = field(
+        default_factory=lambda: (
+            os.environ.get("TRANSCRIPTION_API_KEY")
+            or os.environ.get("AI_GATEWAY_API_KEY")
+            or os.environ.get("OPENAI_API_KEY")
+        )
+    )
+    transcription_model: str = field(
+        default_factory=lambda: os.environ.get("TRANSCRIPTION_MODEL")
+        or os.environ.get("OPENAI_TRANSCRIBE_MODEL", "whisper-1")
+    )
+    transcription_base_url: str | None = field(default_factory=lambda: os.environ.get("TRANSCRIPTION_BASE_URL"))
     openai_api_key: str | None = field(default_factory=lambda: os.environ.get("OPENAI_API_KEY"))
     openai_model: str = field(default_factory=lambda: os.environ.get("OPENAI_TRANSCRIBE_MODEL", "whisper-1"))
 

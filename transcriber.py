@@ -160,6 +160,8 @@ class Transcriber:
             and self.config.openai_model != DEFAULT_TRANSCRIPTION_MODEL
         ):
             return self.config.openai_model
+        # Keep a final default in case callers mutate Config fields to None
+        # after dataclass initialization.
         return self.config.transcription_model or self.config.openai_model or DEFAULT_TRANSCRIPTION_MODEL
 
     def _cloud_base_url(self) -> str:
@@ -254,6 +256,7 @@ def _wav_duration(filepath: str) -> float:
 
 
 def _transcription_endpoint(base_url: str) -> str:
+    """Build the transcription endpoint from either a base URL or full endpoint."""
     normalized = base_url.rstrip("/")
     if normalized.endswith("/audio/transcriptions"):
         return normalized

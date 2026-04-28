@@ -418,7 +418,7 @@ def main():
     start_parser.add_argument("--language", default=None, help="Language code (e.g. en, hi)")
     start_parser.add_argument("--chunk", type=float, default=30.0, help="Chunk duration in seconds")
     start_parser.add_argument("--provider", default="local", choices=["local", "openai", "vercel", "compatible"], help="Transcription provider: local=faster-whisper, openai/vercel/compatible=cloud API")
-    start_parser.add_argument("--transcription-model", "--openai-model", dest="transcription_model", default=None, help="Cloud transcription model (default: TRANSCRIPTION_MODEL or whisper-1)")
+    start_parser.add_argument("--transcription-model", "--openai-model", dest="transcription_model", default=None, help="Cloud transcription model (default: TRANSCRIPTION_MODEL > OPENAI_TRANSCRIBE_MODEL > whisper-1)")
     start_parser.add_argument("--transcription-base-url", default=None, help="Base URL for vercel/compatible cloud transcription API")
     start_parser.add_argument("--speaker-count", "--speakers", dest="speakers", type=int, default=None, help="Exact number of speakers, e.g. 2 for two-person meetings")
     start_parser.add_argument("--max-speakers", type=int, default=10, help="Maximum speaker labels when exact count is unknown")

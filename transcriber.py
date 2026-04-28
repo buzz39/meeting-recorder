@@ -60,7 +60,7 @@ class Transcriber:
         """Load the Whisper model. Call once at startup."""
         if self.provider == "openai":
             if not self.config.openai_api_key:
-                raise RuntimeError("OPENAI_API_KEY is required when using --provider openai")
+                raise RuntimeError("OPENAI_API_KEY is required when transcription_provider is set to openai")
             print(f"☁️  Using OpenAI transcription API ({self.config.openai_model}); no local model to load.")
             return
         if self.provider != "local":
@@ -173,7 +173,7 @@ class Transcriber:
         text = str(payload.get("text", "")).strip()
         if not text:
             return []
-        return [{"start": 0.0, "end": _wav_duration(filepath), "text": text}]
+        return [{"start": 0.0, "end": max(_wav_duration(filepath), 0.001), "text": text}]
 
     def _openai_transcription_request(self, filepath: str) -> dict:
         fields = {

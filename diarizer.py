@@ -52,7 +52,8 @@ class EnergyDiarizer:
         self.config = config
         self._current_speaker = 1
         self._speaker_profiles: dict[int, np.ndarray] = {}
-        self._max_speakers = max(1, config.speaker_count or config.max_speakers)
+        speaker_limit = config.speaker_count if config.speaker_count is not None else config.max_speakers
+        self._max_speakers = max(1, speaker_limit)
 
     def reset(self):
         self._current_speaker = 1

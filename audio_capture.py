@@ -296,13 +296,16 @@ class AudioCapture:
                 mic_audio = np.concatenate(mic_chunks)
                 if mic_rate != self.config.sample_rate:
                     mic_audio = _resample_audio(mic_audio, mic_rate, self.config.sample_rate)
+                length_diff = abs(len(mic_audio) - len(audio))
+                if length_diff > max(1, int(len(audio) * 0.1)):
+                    print("⚠️  Microphone/loopback timing drift detected; mixed audio may be slightly misaligned.")
                 if len(mic_audio) < len(audio):
                     mic_audio = np.pad(mic_audio, (0, len(audio) - len(mic_audio)))
                 else:
                     mic_audio = mic_audio[:len(audio)]
                 # Simple additive mix keeps dependencies low. Clip to the valid
-                # float32 audio range; very loud simultaneous sources may distort,
-                # so users can lower --mic-gain if needed.
+                # float32 audio range. If both sources are loud, clipping causes
+                # distortion; lower --mic-gain if the mixed recording sounds harsh.
                 audio = np.clip(audio + mic_audio, -1.0, 1.0)
             self._processed_chunks.append(audio.copy())
 

@@ -112,7 +112,7 @@ python recorder.py start --format all
 python recorder.py start --output C:\Users\you\meetings --language en
 
 # Two-person call: prevent extra Speaker 3/4 labels
-python recorder.py start --speakers 2
+python recorder.py start --speaker-count 2
 
 # Include your own microphone in the recording/transcript (loopback alone captures only remote audio)
 python recorder.py start --include-mic --mic-gain 1.5
@@ -122,7 +122,7 @@ set OPENAI_API_KEY=sk_your_key_here
 python recorder.py start --provider openai --openai-model whisper-1
 
 # All common options
-python recorder.py start --model small --format all --output ./my_meetings --language en --chunk 20 --speakers 2 --include-mic
+python recorder.py start --model small --format all --output ./my_meetings --language en --chunk 20 --speaker-count 2 --include-mic
 ```
 
 Press **Ctrl+C** to stop — recording and transcript are saved automatically.
@@ -175,7 +175,7 @@ Use `--mic-device <index>` with `--include-mic` to pick a specific microphone.
 If you know the meeting has two speakers, pass:
 
 ```bash
-python recorder.py start --speakers 2
+python recorder.py start --speaker-count 2
 ```
 
 This forwards the exact count to pyannote when available and caps the lightweight

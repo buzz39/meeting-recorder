@@ -419,7 +419,7 @@ def main():
     start_parser.add_argument("--chunk", type=float, default=30.0, help="Chunk duration in seconds")
     start_parser.add_argument("--provider", default="local", choices=["local", "openai"], help="Transcription provider: local=faster-whisper, openai=cloud API")
     start_parser.add_argument("--openai-model", default=None, help="OpenAI transcription model (default: OPENAI_TRANSCRIBE_MODEL or whisper-1)")
-    start_parser.add_argument("--speakers", type=int, default=None, help="Exact number of speakers, e.g. 2 for two-person meetings")
+    start_parser.add_argument("--speaker-count", "--speakers", dest="speakers", type=int, default=None, help="Exact number of speakers, e.g. 2 for two-person meetings")
     start_parser.add_argument("--max-speakers", type=int, default=10, help="Maximum speaker labels when exact count is unknown")
     start_parser.add_argument("--include-mic", action="store_true", help="Mix your microphone with loopback audio")
     start_parser.add_argument("--mic-device", type=int, default=None, help="Microphone device index for --include-mic")
@@ -448,7 +448,7 @@ def main():
     tray_parser.add_argument("--language", default=None, help="Language code")
     tray_parser.add_argument("--provider", default="local", choices=["local", "openai"], help="Transcription provider: local=faster-whisper, openai=cloud API")
     tray_parser.add_argument("--openai-model", default=None, help="OpenAI transcription model")
-    tray_parser.add_argument("--speakers", type=int, default=None, help="Exact number of speakers")
+    tray_parser.add_argument("--speaker-count", "--speakers", dest="speakers", type=int, default=None, help="Exact number of speakers")
     tray_parser.add_argument("--max-speakers", type=int, default=10, help="Maximum speaker labels")
     tray_parser.add_argument("--include-mic", action="store_true", help="Mix your microphone with loopback audio")
     tray_parser.add_argument("--mic-device", type=int, default=None, help="Microphone device index for --include-mic")
@@ -479,9 +479,13 @@ def main():
     if hasattr(args, "openai_model") and args.openai_model:
         config.openai_model = args.openai_model
     if hasattr(args, "speakers") and args.speakers is not None:
+        if args.speakers <= 0:
+            parser.error("--speaker-count must be greater than 0")
         config.speaker_count = args.speakers
         config.max_speakers = args.speakers
     elif hasattr(args, "max_speakers"):
+        if args.max_speakers <= 0:
+            parser.error("--max-speakers must be greater than 0")
         config.max_speakers = args.max_speakers
     if hasattr(args, "include_mic"):
         config.include_microphone = args.include_mic

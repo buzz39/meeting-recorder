@@ -226,8 +226,8 @@ def _multipart_form_data(fields: dict[str, str], file_field: str, filepath: str)
     parts = []
     for name, value in fields.items():
         parts.extend([
-            f"--{boundary}\r\n".encode("utf-8"),
-            f'Content-Disposition: form-data; name="{name}"\r\n\r\n'.encode("utf-8"),
+            f"--{boundary}\r\n".encode(),
+            f'Content-Disposition: form-data; name="{name}"\r\n\r\n'.encode(),
             str(value).encode("utf-8"),
             b"\r\n",
         ])
@@ -237,14 +237,14 @@ def _multipart_form_data(fields: dict[str, str], file_field: str, filepath: str)
     with open(filepath, "rb") as f:
         file_bytes = f.read()
     parts.extend([
-        f"--{boundary}\r\n".encode("utf-8"),
+        f"--{boundary}\r\n".encode(),
         (
             f'Content-Disposition: form-data; name="{file_field}"; '
             f'filename="{filename}"\r\n'
-        ).encode("utf-8"),
-        f"Content-Type: {content_type}\r\n\r\n".encode("utf-8"),
+        ).encode(),
+        f"Content-Type: {content_type}\r\n\r\n".encode(),
         file_bytes,
         b"\r\n",
-        f"--{boundary}--\r\n".encode("utf-8"),
+        f"--{boundary}--\r\n".encode(),
     ])
     return b"".join(parts), f"multipart/form-data; boundary={boundary}"

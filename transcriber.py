@@ -64,7 +64,7 @@ class Transcriber:
             print(f"☁️  Using OpenAI transcription API ({self.config.openai_model}); no local model to load.")
             return
         if self.provider != "local":
-            raise RuntimeError(f"Unsupported transcription provider: {self.config.transcription_provider}")
+            raise RuntimeError(f"Unsupported transcription provider: {self.provider}")
 
         # Imported lazily so simply importing this module (e.g. for unit tests
         # of CLI helpers) does not require the heavy faster-whisper dependency.

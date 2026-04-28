@@ -35,6 +35,11 @@ except ImportError:
     _SCIPY_AVAILABLE = False
 
 
+# Warn only on substantial source-length mismatch. Small differences are normal
+# with independent audio devices and are hidden by padding/trimming each chunk.
+_TIMING_DRIFT_WARNING_RATIO = 0.1
+
+
 def _resample_audio(audio: np.ndarray, src_rate: int, dst_rate: int) -> np.ndarray:
     """Resample mono float32 audio from src_rate to dst_rate.
 
@@ -297,7 +302,7 @@ class AudioCapture:
                 if mic_rate != self.config.sample_rate:
                     mic_audio = _resample_audio(mic_audio, mic_rate, self.config.sample_rate)
                 length_diff = abs(len(mic_audio) - len(audio))
-                if length_diff > max(1, int(len(audio) * 0.1)):
+                if length_diff > max(1, int(len(audio) * _TIMING_DRIFT_WARNING_RATIO)):
                     print("⚠️  Microphone/loopback timing drift detected; mixed audio may be slightly misaligned.")
                 if len(mic_audio) < len(audio):
                     mic_audio = np.pad(mic_audio, (0, len(audio) - len(mic_audio)))

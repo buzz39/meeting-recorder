@@ -181,7 +181,10 @@ class AudioCapture:
             mic_channels = int(self._mic_device_info["maxInputChannels"])
             mic_rate = int(self._mic_device_info["defaultSampleRate"])
             if mic_channels <= 0:
-                raise RuntimeError("Selected microphone device has no input channels")
+                raise RuntimeError(
+                    "Selected microphone device has no input channels: "
+                    f"[{self._mic_device_info['index']}] {self._mic_device_info['name']}"
+                )
             self._apply_microphone_gain = self.config.microphone_gain != 1.0
             print(f"🎙️  Mixing microphone: {self._mic_device_info['name']}")
             print(f"   Channels: {mic_channels}, Rate: {mic_rate}Hz, Gain: {self.config.microphone_gain:g}x")
@@ -304,7 +307,7 @@ class AudioCapture:
                 if mic_rate != self.config.sample_rate:
                     mic_audio = _resample_audio(mic_audio, mic_rate, self.config.sample_rate)
                 length_diff = abs(len(mic_audio) - len(audio))
-                if length_diff > max(1, int(len(audio) * _TIMING_DRIFT_WARNING_RATIO)):
+                if len(audio) > 0 and length_diff > max(1, int(len(audio) * _TIMING_DRIFT_WARNING_RATIO)):
                     drift_pct = (length_diff / max(len(audio), 1)) * 100
                     print(
                         "⚠️  Microphone/loopback timing drift detected "

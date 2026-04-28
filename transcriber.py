@@ -194,6 +194,8 @@ class Transcriber:
             method="POST",
         )
         try:
+            # Cloud transcription of longer recorded files can legitimately take
+            # longer than normal API calls, so use a generous fixed timeout.
             with request.urlopen(req, timeout=120) as response:
                 return json.loads(response.read().decode("utf-8"))
         except HTTPError as e:

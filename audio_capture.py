@@ -300,6 +300,9 @@ class AudioCapture:
                     mic_audio = np.pad(mic_audio, (0, len(audio) - len(mic_audio)))
                 else:
                     mic_audio = mic_audio[:len(audio)]
+                # Simple additive mix keeps dependencies low. Clip to the valid
+                # float32 audio range; very loud simultaneous sources may distort,
+                # so users can lower --mic-gain if needed.
                 audio = np.clip(audio + mic_audio, -1.0, 1.0)
             self._processed_chunks.append(audio.copy())
 

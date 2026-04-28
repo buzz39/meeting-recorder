@@ -59,13 +59,7 @@ class Transcriber:
     def load_model(self):
         """Load the Whisper model. Call once at startup."""
         if self._is_cloud_provider():
-            if not self._cloud_api_key():
-                raise RuntimeError(
-                    "A transcription API key is required for cloud providers. "
-                    "Set TRANSCRIPTION_API_KEY, AI_GATEWAY_API_KEY, or OPENAI_API_KEY."
-                )
-            if self.provider == "compatible" and not self.config.transcription_base_url:
-                raise RuntimeError("--transcription-base-url or TRANSCRIPTION_BASE_URL is required for compatible provider")
+            self._validate_cloud_config()
             print(
                 f"☁️  Using {self.provider} transcription API "
                 f"({self._cloud_model()}); no local model to load."
@@ -150,6 +144,15 @@ class Transcriber:
     def _is_cloud_provider(self) -> bool:
         return is_cloud_transcription_provider(self.provider)
 
+    def _validate_cloud_config(self):
+        if not self._cloud_api_key():
+            raise RuntimeError(
+                "A transcription API key is required for cloud providers. "
+                "Set TRANSCRIPTION_API_KEY, AI_GATEWAY_API_KEY, or OPENAI_API_KEY."
+            )
+        if self.provider == "compatible" and not self.config.transcription_base_url:
+            raise RuntimeError("--transcription-base-url or TRANSCRIPTION_BASE_URL is required for compatible provider")
+
     def _cloud_api_key(self) -> str | None:
         # Config.transcription_api_key already applies the env fallback order
         # TRANSCRIPTION_API_KEY > AI_GATEWAY_API_KEY > OPENAI_API_KEY. The
@@ -174,7 +177,7 @@ class Transcriber:
         if self.provider == "vercel":
             return "https://ai-gateway.vercel.sh/v1"
         if self.provider == "compatible":
-            raise RuntimeError("--transcription-base-url or TRANSCRIPTION_BASE_URL is required for compatible provider")
+            self._validate_cloud_config()
         return "https://api.openai.com/v1"
 
     def _transcribe_audio_cloud(self, audio_chunk: np.ndarray, chunk_offset: float) -> list[dict]:

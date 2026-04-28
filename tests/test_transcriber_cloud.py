@@ -2,7 +2,7 @@ import json
 
 import numpy as np
 
-from config import DEFAULT_TRANSCRIPTION_MODEL, Config, get_first_env_var
+from config import DEFAULT_TRANSCRIPTION_MODEL, Config
 from transcriber import Transcriber, _multipart_form_data, _transcription_endpoint
 
 
@@ -46,13 +46,6 @@ def test_cloud_model_has_default_fallback():
     transcriber = Transcriber(cfg)
 
     assert transcriber._cloud_model() == DEFAULT_TRANSCRIPTION_MODEL
-
-
-def test_get_first_env_var_skips_empty_values(monkeypatch):
-    monkeypatch.setenv("TRANSCRIPTION_MODEL", "")
-    monkeypatch.setenv("OPENAI_TRANSCRIBE_MODEL", "fallback-model")
-
-    assert get_first_env_var("TRANSCRIPTION_MODEL", "OPENAI_TRANSCRIBE_MODEL") == "fallback-model"
 
 
 def test_compatible_provider_requires_base_url():

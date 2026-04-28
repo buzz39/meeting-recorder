@@ -52,7 +52,7 @@ class EnergyDiarizer:
         self.config = config
         self._current_speaker = 1
         self._speaker_profiles: dict[int, np.ndarray] = {}
-        self._max_speakers = 10
+        self._max_speakers = max(1, config.speaker_count or config.max_speakers)
 
     def reset(self):
         self._current_speaker = 1
@@ -201,7 +201,12 @@ class PyannoteDiarizer:
         waveform = torch.from_numpy(audio_chunk).unsqueeze(0)  # (1, samples)
         audio_input = {"waveform": waveform, "sample_rate": self.config.sample_rate}
 
-        diarization = self._pipeline(audio_input)
+        kwargs = {}
+        if self.config.speaker_count:
+            kwargs["num_speakers"] = self.config.speaker_count
+        elif self.config.max_speakers:
+            kwargs["max_speakers"] = self.config.max_speakers
+        diarization = self._pipeline(audio_input, **kwargs)
 
         # Build a timeline: list of (start, end, pyannote_label)
         dia_segments = []

@@ -24,6 +24,12 @@ class Config:
     # Set via HF_TOKEN env var or here directly
     hf_token: str | None = field(default_factory=lambda: os.environ.get("HF_TOKEN"))
 
+    # Transcription provider: local (faster-whisper) or openai (cloud API).
+    # Cloud mode avoids local model downloads/cold starts on low-resource PCs.
+    transcription_provider: str = field(default_factory=lambda: os.environ.get("TRANSCRIPTION_PROVIDER", "local"))
+    openai_api_key: str | None = field(default_factory=lambda: os.environ.get("OPENAI_API_KEY"))
+    openai_model: str = field(default_factory=lambda: os.environ.get("OPENAI_TRANSCRIBE_MODEL", "whisper-1"))
+
     # Audio chunk duration in seconds for processing
     chunk_duration: float = 30.0
 
@@ -39,6 +45,11 @@ class Config:
     # Minimum silence duration (seconds) to detect speaker change
     speaker_change_silence: float = 0.5
 
+    # Optional known/exact speaker count and maximum speaker cap for diarization.
+    # Use speaker_count=2 for two-person calls to prevent over-splitting.
+    speaker_count: int | None = None
+    max_speakers: int = 10
+
     # Energy threshold (RMS) below which audio is considered silence
     silence_threshold: float = 0.01
 
@@ -47,6 +58,12 @@ class Config:
 
     # Device index for audio capture (None = default loopback)
     device_index: int | None = None
+
+    # Optional microphone mix. WASAPI loopback captures the other side of a call;
+    # enabling this also records/transcribes your local microphone.
+    include_microphone: bool = False
+    microphone_device_index: int | None = None
+    microphone_gain: float = 1.0
 
     # Compute type for faster-whisper: int8, float16, float32
     compute_type: str = "int8"

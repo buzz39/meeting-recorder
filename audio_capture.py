@@ -64,11 +64,15 @@ class AudioCapture:
         self.config = config
         self.audio = pyaudio.PyAudio()
         self.stream = None
+        self.mic_stream = None
         self.is_recording = False
         self.audio_queue: queue.Queue[np.ndarray] = queue.Queue()
+        self.mic_queue: queue.Queue[np.ndarray] = queue.Queue()
         self._raw_frames: list[bytes] = []  # For saving full WAV
+        self._processed_chunks: list[np.ndarray] = []  # Mixed mono 16kHz chunks when mic is enabled
         self._lock = threading.Lock()
         self._device_info = None
+        self._mic_device_info = None
 
     def find_loopback_device(self) -> dict:
         """Find the default WASAPI loopback device.
@@ -123,6 +127,19 @@ class AudioCapture:
                 self.audio_queue.put(audio_data)
         return (in_data, pyaudio.paContinue)
 
+    def _mic_callback(self, in_data, frame_count, time_info, status):
+        """Called by PyAudio for microphone buffers when mic mixing is enabled."""
+        with self._lock:
+            if self.is_recording:
+                audio_data = np.frombuffer(in_data, dtype=np.float32)
+                if self._mic_device_info and self._mic_device_info["maxInputChannels"] > 1:
+                    channels = self._mic_device_info["maxInputChannels"]
+                    audio_data = audio_data.reshape(-1, channels).mean(axis=1)
+                if self.config.microphone_gain != 1.0:
+                    audio_data = audio_data * float(self.config.microphone_gain)
+                self.mic_queue.put(audio_data)
+        return (in_data, pyaudio.paContinue)
+
     def start(self):
         """Start capturing system audio."""
         self._device_info = self.find_loopback_device()
@@ -134,6 +151,7 @@ class AudioCapture:
 
         self.is_recording = True
         self._raw_frames = []
+        self._processed_chunks = []
 
         # Open stream using the loopback device's native format
         # We capture at device rate and convert later for Whisper
@@ -148,6 +166,29 @@ class AudioCapture:
         )
         self.stream.start_stream()
 
+        if self.config.include_microphone:
+            self._mic_device_info = (
+                self.audio.get_device_info_by_index(self.config.microphone_device_index)
+                if self.config.microphone_device_index is not None
+                else self.audio.get_default_input_device_info()
+            )
+            mic_channels = int(self._mic_device_info["maxInputChannels"])
+            mic_rate = int(self._mic_device_info["defaultSampleRate"])
+            if mic_channels <= 0:
+                raise RuntimeError("Selected microphone device has no input channels")
+            print(f"🎙️  Mixing microphone: {self._mic_device_info['name']}")
+            print(f"   Channels: {mic_channels}, Rate: {mic_rate}Hz, Gain: {self.config.microphone_gain:g}x")
+            self.mic_stream = self.audio.open(
+                format=pyaudio.paFloat32,
+                channels=mic_channels,
+                rate=mic_rate,
+                input=True,
+                input_device_index=self._mic_device_info["index"],
+                frames_per_buffer=1024,
+                stream_callback=self._mic_callback,
+            )
+            self.mic_stream.start_stream()
+
     def stop(self) -> list[bytes]:
         """Stop capturing and return raw frames."""
         self.is_recording = False
@@ -155,6 +196,10 @@ class AudioCapture:
             self.stream.stop_stream()
             self.stream.close()
             self.stream = None
+        if self.mic_stream:
+            self.mic_stream.stop_stream()
+            self.mic_stream.close()
+            self.mic_stream = None
         with self._lock:
             frames = list(self._raw_frames)
             self._raw_frames = []
@@ -169,6 +214,16 @@ class AudioCapture:
         float32 bytes with `setsampwidth(4)` produces a file that most players
         misinterpret as int32 and render as static.
         """
+        if self.config.include_microphone and self._processed_chunks:
+            audio_f32 = np.concatenate(self._processed_chunks)
+            audio_i16 = (np.clip(audio_f32, -1.0, 1.0) * 32767.0).astype(np.int16)
+            with wave.open(filepath, "wb") as wf:
+                wf.setnchannels(1)
+                wf.setsampwidth(2)
+                wf.setframerate(self.config.sample_rate)
+                wf.writeframes(audio_i16.tobytes())
+            return
+
         if not frames or not self._device_info:
             return
         channels = self._device_info["maxInputChannels"]
@@ -222,12 +277,31 @@ class AudioCapture:
 
         audio = np.concatenate(collected)
 
-        # Resample from device rate to 16kHz for Whisper if needed.
+        # Resample from device rate to the configured transcription sample rate if needed.
         # Uses scipy.signal.resample_poly (polyphase + anti-aliasing) when
         # available, otherwise linear interpolation. The previous nearest-
         # neighbor approach aliased badly when downsampling 48kHz → 16kHz.
-        if device_rate != 16000:
-            audio = _resample_audio(audio, device_rate, 16000)
+        if device_rate != self.config.sample_rate:
+            audio = _resample_audio(audio, device_rate, self.config.sample_rate)
+
+        if self.config.include_microphone and self._mic_device_info:
+            mic_rate = int(self._mic_device_info["defaultSampleRate"])
+            mic_chunks = []
+            while True:
+                try:
+                    mic_chunks.append(self.mic_queue.get_nowait())
+                except queue.Empty:
+                    break
+            if mic_chunks:
+                mic_audio = np.concatenate(mic_chunks)
+                if mic_rate != self.config.sample_rate:
+                    mic_audio = _resample_audio(mic_audio, mic_rate, self.config.sample_rate)
+                if len(mic_audio) < len(audio):
+                    mic_audio = np.pad(mic_audio, (0, len(audio) - len(mic_audio)))
+                else:
+                    mic_audio = mic_audio[:len(audio)]
+                audio = np.clip(audio + mic_audio, -1.0, 1.0)
+            self._processed_chunks.append(audio.copy())
 
         return audio.astype(np.float32)
 

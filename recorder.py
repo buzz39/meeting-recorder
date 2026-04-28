@@ -76,7 +76,15 @@ class Recorder:
 
         print("=" * 60)
         print("🎙️  Meeting Recorder")
-        print(f"   Model: {self.config.model_size} | Format: {self.config.output_format}")
+        provider = self.config.transcription_provider
+        model = self.config.openai_model if provider == "openai" else self.config.model_size
+        print(f"   Provider: {provider} | Model: {model} | Format: {self.config.output_format}")
+        if self.config.speaker_count:
+            print(f"   Speakers: fixed at {self.config.speaker_count}")
+        elif self.config.max_speakers:
+            print(f"   Max speakers: {self.config.max_speakers}")
+        if self.config.include_microphone:
+            print(f"   Microphone mix: on (gain {self.config.microphone_gain:g}x)")
         print(f"   Output: {self.config.output_dir}")
         print("   Press Ctrl+C to stop recording")
         print("=" * 60)
@@ -409,6 +417,13 @@ def main():
     start_parser.add_argument("--device", type=int, default=None, help="Audio device index")
     start_parser.add_argument("--language", default=None, help="Language code (e.g. en, hi)")
     start_parser.add_argument("--chunk", type=float, default=30.0, help="Chunk duration in seconds")
+    start_parser.add_argument("--provider", default="local", choices=["local", "openai"], help="Transcription provider")
+    start_parser.add_argument("--openai-model", default=None, help="OpenAI transcription model (default: OPENAI_TRANSCRIBE_MODEL or whisper-1)")
+    start_parser.add_argument("--speakers", type=int, default=None, help="Exact number of speakers, e.g. 2 for two-person meetings")
+    start_parser.add_argument("--max-speakers", type=int, default=10, help="Maximum speaker labels when exact count is unknown")
+    start_parser.add_argument("--include-mic", action="store_true", help="Mix your microphone with loopback audio")
+    start_parser.add_argument("--mic-device", type=int, default=None, help="Microphone device index for --include-mic")
+    start_parser.add_argument("--mic-gain", type=float, default=1.0, help="Microphone gain multiplier for --include-mic")
 
     # list
     subparsers.add_parser("list", help="List past recordings")
@@ -418,6 +433,9 @@ def main():
     trans_parser.add_argument("file", help="Path to audio file")
     trans_parser.add_argument("--model", default="small", help="Whisper model size")
     trans_parser.add_argument("--format", default="txt", choices=["txt", "srt", "json", "all"])
+    trans_parser.add_argument("--provider", default="local", choices=["local", "openai"], help="Transcription provider")
+    trans_parser.add_argument("--openai-model", default=None, help="OpenAI transcription model")
+    trans_parser.add_argument("--language", default=None, help="Language code")
 
     # devices
     subparsers.add_parser("devices", help="List audio devices")
@@ -428,6 +446,13 @@ def main():
     tray_parser.add_argument("--output", default=None, help="Output directory")
     tray_parser.add_argument("--format", default="all", choices=["txt", "srt", "json", "all"])
     tray_parser.add_argument("--language", default=None, help="Language code")
+    tray_parser.add_argument("--provider", default="local", choices=["local", "openai"], help="Transcription provider")
+    tray_parser.add_argument("--openai-model", default=None, help="OpenAI transcription model")
+    tray_parser.add_argument("--speakers", type=int, default=None, help="Exact number of speakers")
+    tray_parser.add_argument("--max-speakers", type=int, default=10, help="Maximum speaker labels")
+    tray_parser.add_argument("--include-mic", action="store_true", help="Mix your microphone with loopback audio")
+    tray_parser.add_argument("--mic-device", type=int, default=None, help="Microphone device index for --include-mic")
+    tray_parser.add_argument("--mic-gain", type=float, default=1.0, help="Microphone gain multiplier for --include-mic")
 
     args = parser.parse_args()
 
@@ -449,6 +474,21 @@ def main():
         config.language = args.language
     if hasattr(args, "chunk"):
         config.chunk_duration = args.chunk
+    if hasattr(args, "provider"):
+        config.transcription_provider = args.provider
+    if hasattr(args, "openai_model") and args.openai_model:
+        config.openai_model = args.openai_model
+    if hasattr(args, "speakers") and args.speakers is not None:
+        config.speaker_count = args.speakers
+        config.max_speakers = args.speakers
+    elif hasattr(args, "max_speakers"):
+        config.max_speakers = args.max_speakers
+    if hasattr(args, "include_mic"):
+        config.include_microphone = args.include_mic
+    if hasattr(args, "mic_device") and args.mic_device is not None:
+        config.microphone_device_index = args.mic_device
+    if hasattr(args, "mic_gain"):
+        config.microphone_gain = args.mic_gain
 
     # Tray mode does not need the heavy Recorder (and its ML deps) loaded
     # up-front — the tray app constructs the Recorder lazily when the user

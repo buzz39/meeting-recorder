@@ -85,6 +85,8 @@ class Recorder:
             print(f"   Max speakers: {self.config.max_speakers}")
         if self.config.include_microphone:
             print(f"   Microphone mix: on (gain {self.config.microphone_gain:g}x)")
+        else:
+            print("   Microphone mix: off")
         print(f"   Output: {self.config.output_dir}")
         print("   Press Ctrl+C to stop recording")
         print("=" * 60)
@@ -423,7 +425,8 @@ def main():
     start_parser.add_argument("--transcription-base-url", default=None, help="Base URL for vercel/compatible cloud transcription API")
     start_parser.add_argument("--speaker-count", "--speakers", dest="speakers", type=int, default=None, help="Exact number of speakers, e.g. 2 for two-person meetings")
     start_parser.add_argument("--max-speakers", type=int, default=10, help="Maximum speaker labels when exact count is unknown")
-    start_parser.add_argument("--include-mic", action="store_true", help="Mix your microphone with loopback audio")
+    start_parser.add_argument("--include-mic", dest="include_mic", action="store_true", default=None, help="Mix your microphone with loopback audio (default)")
+    start_parser.add_argument("--no-include-mic", dest="include_mic", action="store_false", help="Record loopback audio only")
     start_parser.add_argument("--mic-device", type=int, default=None, help="Microphone device index for --include-mic")
     start_parser.add_argument("--mic-gain", type=float, default=1.0, help="Microphone gain multiplier for --include-mic")
 
@@ -454,7 +457,8 @@ def main():
     tray_parser.add_argument("--transcription-base-url", default=None, help="Base URL for vercel/compatible cloud transcription API")
     tray_parser.add_argument("--speaker-count", "--speakers", dest="speakers", type=int, default=None, help="Exact number of speakers")
     tray_parser.add_argument("--max-speakers", type=int, default=10, help="Maximum speaker labels")
-    tray_parser.add_argument("--include-mic", action="store_true", help="Mix your microphone with loopback audio")
+    tray_parser.add_argument("--include-mic", dest="include_mic", action="store_true", default=None, help="Mix your microphone with loopback audio (default)")
+    tray_parser.add_argument("--no-include-mic", dest="include_mic", action="store_false", help="Record loopback audio only")
     tray_parser.add_argument("--mic-device", type=int, default=None, help="Microphone device index for --include-mic")
     tray_parser.add_argument("--mic-gain", type=float, default=1.0, help="Microphone gain multiplier for --include-mic")
 
@@ -493,7 +497,7 @@ def main():
         if args.max_speakers <= 0:
             parser.error("--max-speakers must be greater than 0")
         config.max_speakers = args.max_speakers
-    if hasattr(args, "include_mic"):
+    if hasattr(args, "include_mic") and args.include_mic is not None:
         config.include_microphone = args.include_mic
     if hasattr(args, "mic_device") and args.mic_device is not None:
         config.microphone_device_index = args.mic_device

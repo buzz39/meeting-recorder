@@ -173,31 +173,36 @@ class AudioCapture:
         self.stream.start_stream()
 
         if self.config.include_microphone:
-            self._mic_device_info = (
-                self.audio.get_device_info_by_index(self.config.microphone_device_index)
-                if self.config.microphone_device_index is not None
-                else self.audio.get_default_input_device_info()
-            )
-            mic_channels = int(self._mic_device_info["maxInputChannels"])
-            mic_rate = int(self._mic_device_info["defaultSampleRate"])
-            if mic_channels <= 0:
-                raise RuntimeError(
-                    "Selected microphone device has no input channels: "
-                    f"[{self._mic_device_info['index']}] {self._mic_device_info['name']}"
+            try:
+                self._mic_device_info = (
+                    self.audio.get_device_info_by_index(self.config.microphone_device_index)
+                    if self.config.microphone_device_index is not None
+                    else self.audio.get_default_input_device_info()
                 )
-            self._apply_microphone_gain = self.config.microphone_gain != 1.0
-            print(f"🎙️  Mixing microphone: {self._mic_device_info['name']}")
-            print(f"   Channels: {mic_channels}, Rate: {mic_rate}Hz, Gain: {self.config.microphone_gain:g}x")
-            self.mic_stream = self.audio.open(
-                format=pyaudio.paFloat32,
-                channels=mic_channels,
-                rate=mic_rate,
-                input=True,
-                input_device_index=self._mic_device_info["index"],
-                frames_per_buffer=1024,
-                stream_callback=self._mic_callback,
-            )
-            self.mic_stream.start_stream()
+                mic_channels = int(self._mic_device_info["maxInputChannels"])
+                mic_rate = int(self._mic_device_info["defaultSampleRate"])
+                if mic_channels <= 0:
+                    raise RuntimeError(
+                        "Selected microphone device has no input channels: "
+                        f"[{self._mic_device_info['index']}] {self._mic_device_info['name']}"
+                    )
+                self._apply_microphone_gain = self.config.microphone_gain != 1.0
+                print(f"🎙️  Mixing microphone: {self._mic_device_info['name']}")
+                print(f"   Channels: {mic_channels}, Rate: {mic_rate}Hz, Gain: {self.config.microphone_gain:g}x")
+                self.mic_stream = self.audio.open(
+                    format=pyaudio.paFloat32,
+                    channels=mic_channels,
+                    rate=mic_rate,
+                    input=True,
+                    input_device_index=self._mic_device_info["index"],
+                    frames_per_buffer=1024,
+                    stream_callback=self._mic_callback,
+                )
+                self.mic_stream.start_stream()
+            except Exception as e:
+                self._mic_device_info = None
+                self.mic_stream = None
+                print(f"⚠️  Microphone mix unavailable; recording loopback only: {e}")
 
     def stop(self) -> list[bytes]:
         """Stop capturing and return raw frames."""

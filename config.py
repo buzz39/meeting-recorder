@@ -91,9 +91,9 @@ class Config:
     # Device index for audio capture (None = default loopback)
     device_index: int | None = None
 
-    # Optional microphone mix. WASAPI loopback captures the other side of a call;
-    # enabling this also records/transcribes your local microphone.
-    include_microphone: bool = False
+    # Microphone mix. WASAPI loopback captures the other side of a call; keeping
+    # this enabled also records/transcribes your local microphone.
+    include_microphone: bool = True
     microphone_device_index: int | None = None
     microphone_gain: float = 1.0
 

@@ -12,7 +12,7 @@ A lightweight Windows CLI tool that captures system audio (WASAPI loopback), tra
 - **Local or cloud transcription** — faster-whisper runs offline, or use OpenAI's transcription API on low-RAM/CPU systems
 - **Speaker diarization** — pyannote-audio (accurate, neural) or energy-based (lightweight) fallback
 - **Speaker-count controls** — pass a known speaker count (for example `--speakers 2`) to avoid over-splitting voices
-- **Optional microphone mix** — capture your mic alongside WASAPI loopback so your own voice is clear in recordings
+- **Microphone mix by default** — capture your mic alongside WASAPI loopback so your own voice is clear in recordings
 - **Multiple output formats** — TXT timestamps, SRT subtitles, JSON, or all three
 - **System tray mode** — minimize to tray, start/stop recording from right-click menu (Windows)
 - **Real-time streaming** — see transcription as it happens during recording
@@ -114,8 +114,8 @@ python recorder.py start --output C:\Users\you\meetings --language en
 # Two-person call: prevent extra Speaker 3/4 labels
 python recorder.py start --speaker-count 2
 
-# Include your own microphone in the recording/transcript (loopback alone captures only remote audio)
-python recorder.py start --include-mic --mic-gain 1.5
+# Your microphone is mixed in by default; adjust gain if needed
+python recorder.py start --mic-gain 1.5
 
 # Use cloud transcription to avoid local Whisper downloads/cold start
 set OPENAI_API_KEY=sk_your_key_here
@@ -125,8 +125,11 @@ python recorder.py start --provider openai --transcription-model whisper-1
 set AI_GATEWAY_API_KEY=your_gateway_key_here
 python recorder.py start --provider vercel --transcription-model openai/whisper-1
 
+# Record loopback audio only
+python recorder.py start --no-include-mic
+
 # All common options
-python recorder.py start --model small --format all --output ./my_meetings --language en --chunk 20 --speaker-count 2 --include-mic
+python recorder.py start --model small --format all --output ./my_meetings --language en --chunk 20 --speaker-count 2 --mic-gain 1.5
 ```
 
 Press **Ctrl+C** to stop — recording and transcript are saved automatically.
@@ -173,7 +176,7 @@ python recorder.py devices
 ```
 
 Use `--device <index>` with `start` to pick a specific loopback device.
-Use `--mic-device <index>` with `--include-mic` to pick a specific microphone.
+Use `--mic-device <index>` to pick a specific microphone.
 
 ### Improving speaker labels
 
@@ -193,16 +196,16 @@ WASAPI loopback records the audio playing through speakers/headphones. Most
 meeting apps do **not** play your own microphone back to you, so loopback alone
 captures the other participants clearly but may miss or weaken your voice.
 
-Enable microphone mixing:
+Microphone mixing is enabled by default:
 
 ```bash
 python recorder.py devices
-python recorder.py start --include-mic --mic-gain 1.5
-python recorder.py start --include-mic --mic-device 3
+python recorder.py start --mic-gain 1.5
+python recorder.py start --mic-device 3
 ```
 
-When microphone mixing is enabled, the saved WAV is a mono 16 kHz mix of the
-loopback audio and your microphone.
+The saved WAV is a mono 16 kHz mix of the loopback audio and your microphone.
+If you only want system audio, pass `--no-include-mic`.
 
 ### Cloud transcription for low-resource systems
 

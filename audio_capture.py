@@ -202,6 +202,7 @@ class AudioCapture:
             except Exception as e:
                 self._mic_device_info = None
                 self.mic_stream = None
+                self._apply_microphone_gain = False
                 print(f"⚠️  Microphone mix unavailable; recording loopback only: {e}")
 
     def stop(self) -> list[bytes]:

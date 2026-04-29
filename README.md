@@ -176,7 +176,7 @@ python recorder.py devices
 ```
 
 Use `--device <index>` with `start` to pick a specific loopback device.
-Use `--mic-device <index>` with `--include-mic` to pick a specific microphone.
+Use `--mic-device <index>` to pick a specific microphone.
 
 ### Improving speaker labels
 

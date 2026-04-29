@@ -427,8 +427,8 @@ def main():
     start_parser.add_argument("--max-speakers", type=int, default=10, help="Maximum speaker labels when exact count is unknown")
     start_parser.add_argument("--include-mic", dest="include_mic", action="store_true", default=None, help="Mix your microphone with loopback audio (default)")
     start_parser.add_argument("--no-include-mic", dest="include_mic", action="store_false", help="Record loopback audio only")
-    start_parser.add_argument("--mic-device", type=int, default=None, help="Microphone device index for --include-mic")
-    start_parser.add_argument("--mic-gain", type=float, default=1.0, help="Microphone gain multiplier for --include-mic")
+    start_parser.add_argument("--mic-device", type=int, default=None, help="Microphone device index")
+    start_parser.add_argument("--mic-gain", type=float, default=1.0, help="Microphone gain multiplier")
 
     # list
     subparsers.add_parser("list", help="List past recordings")
@@ -459,8 +459,8 @@ def main():
     tray_parser.add_argument("--max-speakers", type=int, default=10, help="Maximum speaker labels")
     tray_parser.add_argument("--include-mic", dest="include_mic", action="store_true", default=None, help="Mix your microphone with loopback audio (default)")
     tray_parser.add_argument("--no-include-mic", dest="include_mic", action="store_false", help="Record loopback audio only")
-    tray_parser.add_argument("--mic-device", type=int, default=None, help="Microphone device index for --include-mic")
-    tray_parser.add_argument("--mic-gain", type=float, default=1.0, help="Microphone gain multiplier for --include-mic")
+    tray_parser.add_argument("--mic-device", type=int, default=None, help="Microphone device index")
+    tray_parser.add_argument("--mic-gain", type=float, default=1.0, help="Microphone gain multiplier")
 
     args = parser.parse_args()
 

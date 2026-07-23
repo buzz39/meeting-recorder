@@ -64,6 +64,27 @@ def test_invalid_settings_are_ignored(tmp_path):
     assert load_settings(path) == {}
 
 
+def test_index_only_device_settings_fall_back_to_defaults(tmp_path):
+    path = tmp_path / "settings.json"
+    path.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "settings": {
+                    "device_index": 4,
+                    "microphone_device_index": 5,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    loaded = load_settings(path)
+
+    assert loaded["device_index"] is None
+    assert loaded["microphone_device_index"] is None
+
+
 def test_setup_marker_round_trip(tmp_path):
     marker = tmp_path / "setup-complete"
 

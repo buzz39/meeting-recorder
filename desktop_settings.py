@@ -58,7 +58,12 @@ def load_settings(path: Path | None = None) -> dict[str, Any]:
     values = payload.get("settings")
     if not isinstance(values, dict):
         return {}
-    return {key: values[key] for key in PERSISTED_FIELDS if key in values}
+    loaded = {key: values[key] for key in PERSISTED_FIELDS if key in values}
+    if loaded.get("device_index") is not None and not loaded.get("device_name"):
+        loaded["device_index"] = None
+    if loaded.get("microphone_device_index") is not None and not loaded.get("microphone_device_name"):
+        loaded["microphone_device_index"] = None
+    return loaded
 
 
 def save_settings(config: Config, path: Path | None = None) -> None:

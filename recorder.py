@@ -453,19 +453,19 @@ def main():
 
     # tray (Windows system tray mode)
     tray_parser = subparsers.add_parser("tray", help="Launch in system tray mode (Windows)")
-    tray_parser.add_argument("--model", default="small", help="Whisper model size")
+    tray_parser.add_argument("--model", default=None, help="Whisper model size")
     tray_parser.add_argument("--output", default=None, help="Output directory")
-    tray_parser.add_argument("--format", default="all", choices=["txt", "srt", "json", "all"])
+    tray_parser.add_argument("--format", default=None, choices=["txt", "srt", "json", "all"])
     tray_parser.add_argument("--language", default=None, help="Language code")
-    tray_parser.add_argument("--provider", default="local", choices=provider_choices, help="Transcription provider: local=faster-whisper; openai|vercel|compatible for cloud API")
+    tray_parser.add_argument("--provider", default=None, choices=provider_choices, help="Transcription provider: local=faster-whisper; openai|vercel|compatible for cloud API")
     tray_parser.add_argument("--transcription-model", "--openai-model", dest="transcription_model", default=None, help="Cloud transcription model")
     tray_parser.add_argument("--transcription-base-url", default=None, help="Base URL for vercel/compatible cloud transcription API")
     tray_parser.add_argument("--speaker-count", "--speakers", dest="speakers", type=int, default=None, help="Exact number of speakers")
-    tray_parser.add_argument("--max-speakers", type=int, default=10, help="Maximum speaker labels")
+    tray_parser.add_argument("--max-speakers", type=int, default=None, help="Maximum speaker labels")
     tray_parser.add_argument("--include-mic", dest="include_mic", action="store_true", default=None, help="Mix your microphone with loopback audio (default)")
     tray_parser.add_argument("--no-include-mic", dest="include_mic", action="store_false", help="Record loopback audio only")
     tray_parser.add_argument("--mic-device", type=int, default=None, help="Microphone device index")
-    tray_parser.add_argument("--mic-gain", type=float, default=1.0, help="Microphone gain multiplier")
+    tray_parser.add_argument("--mic-gain", type=float, default=None, help="Microphone gain multiplier")
 
     args = parser.parse_args()
 
@@ -474,10 +474,14 @@ def main():
         return
 
     config = Config()
+    if args.command == "tray":
+        from desktop_settings import apply_desktop_settings
 
-    if hasattr(args, "model"):
+        apply_desktop_settings(config)
+
+    if hasattr(args, "model") and args.model is not None:
         config.model_size = args.model
-    if hasattr(args, "format"):
+    if hasattr(args, "format") and args.format is not None:
         config.output_format = args.format
     if hasattr(args, "output") and args.output:
         config.output_dir = args.output
@@ -487,7 +491,7 @@ def main():
         config.language = args.language
     if hasattr(args, "chunk"):
         config.chunk_duration = args.chunk
-    if hasattr(args, "provider"):
+    if hasattr(args, "provider") and args.provider is not None:
         config.transcription_provider = args.provider
     if hasattr(args, "transcription_model") and args.transcription_model:
         config.transcription_model = args.transcription_model
@@ -498,7 +502,7 @@ def main():
             parser.error("--speaker-count (or --speakers) must be greater than 0")
         config.speaker_count = args.speakers
         config.max_speakers = args.speakers
-    elif hasattr(args, "max_speakers"):
+    elif hasattr(args, "max_speakers") and args.max_speakers is not None:
         if args.max_speakers <= 0:
             parser.error("--max-speakers must be greater than 0")
         config.max_speakers = args.max_speakers
@@ -506,7 +510,7 @@ def main():
         config.include_microphone = args.include_mic
     if hasattr(args, "mic_device") and args.mic_device is not None:
         config.microphone_device_index = args.mic_device
-    if hasattr(args, "mic_gain"):
+    if hasattr(args, "mic_gain") and args.mic_gain is not None:
         config.microphone_gain = args.mic_gain
 
     # Tray mode does not need the heavy Recorder (and its ML deps) loaded

@@ -60,6 +60,9 @@ Changelog = "https://github.com/buzz39/meeting-recorder/blob/main/CHANGELOG.md"
 py-modules = [
     "recorder",
     "config",
+    "desktop_settings",
+    "desktop_ui",
+    "desktop_main",
     "transcriber",
     "diarizer",
     "audio_capture",

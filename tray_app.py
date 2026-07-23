@@ -21,6 +21,7 @@ except ImportError:
     _TRAY_AVAILABLE = False
 
 from config import Config
+from desktop_settings import has_completed_setup
 
 
 def _create_icon(color: str = "gray", size: int = 64) -> "Image.Image":
@@ -135,6 +136,14 @@ class TrayApp:
         else:
             subprocess.Popen(["xdg-open", folder])
 
+    def _show_settings(self, icon=None, item=None):
+        if self.is_recording or self._is_stopping:
+            return
+        from desktop_ui import run_settings_dialog
+
+        if run_settings_dialog(self.config):
+            self._notify("Settings saved", "Your Meeting Recorder settings were updated.")
+
     def _quit(self, icon=None, item=None):
         if self.is_recording:
             self._stop_recording()
@@ -160,6 +169,11 @@ class TrayApp:
                 enabled=lambda item: self.is_recording and not self._is_stopping,
             ),
             pystray.Menu.SEPARATOR,
+            pystray.MenuItem(
+                "Settings…",
+                self._show_settings,
+                enabled=lambda item: not self.is_recording and not self._is_stopping,
+            ),
             pystray.MenuItem("Open Recordings Folder", self._open_recordings),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("Quit", self._quit),
@@ -183,6 +197,13 @@ def run_tray(config: Config):
         print("❌ System tray requires pystray and Pillow.")
         print("   Install: pip install pystray Pillow")
         sys.exit(1)
+
+    if not has_completed_setup():
+        from desktop_ui import run_settings_dialog
+
+        if not run_settings_dialog(config, first_run=True):
+            print("Meeting Recorder setup was cancelled.")
+            return
 
     app = TrayApp(config)
     app.run()

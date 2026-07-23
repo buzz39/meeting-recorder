@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Native Windows desktop setup and settings UI with persisted per-user
+  preferences, audio-device selection, consent/privacy notices, and writable
+  Documents-based recording storage.
+- PyInstaller and Inno Setup packaging for a startup-capable, code-signed
+  Windows installer.
 - JSON transcript output (`--format json`, also included in `--format all`).
 - Auto-detect CUDA for transcription; CPU stays the default fallback.
 - `pyproject.toml` with a `meeting-recorder` console script entry point and

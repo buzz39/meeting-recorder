@@ -89,7 +89,22 @@ class AudioCapture:
         whatever audio is being played through speakers/headphones.
         """
         if self.config.device_index is not None:
-            return self.audio.get_device_info_by_index(self.config.device_index)
+            try:
+                selected = self.audio.get_device_info_by_index(self.config.device_index)
+            except (IndexError, OSError):
+                selected = None
+            if (
+                selected
+                and selected.get("isLoopbackDevice", False)
+                and (not self.config.device_name or selected.get("name") == self.config.device_name)
+            ):
+                return selected
+            if self.config.device_name:
+                for i in range(self.audio.get_device_count()):
+                    candidate = self.audio.get_device_info_by_index(i)
+                    if candidate.get("isLoopbackDevice", False) and candidate.get("name") == self.config.device_name:
+                        return candidate
+            print("⚠️  Saved system-audio device is unavailable; using the Windows default.")
 
         # Get default speakers
         default_speakers = self.audio.get_default_wasapi_loopback()
@@ -106,6 +121,35 @@ class AudioCapture:
             "No WASAPI loopback device found. Make sure you're on Windows 10/11 "
             "and have audio output devices available."
         )
+
+    def find_microphone_device(self) -> dict:
+        """Resolve a saved microphone safely, falling back to the current default."""
+        if self.config.microphone_device_index is not None:
+            try:
+                selected = self.audio.get_device_info_by_index(self.config.microphone_device_index)
+            except (IndexError, OSError):
+                selected = None
+            if (
+                selected
+                and selected.get("maxInputChannels", 0) > 0
+                and not selected.get("isLoopbackDevice", False)
+                and (
+                    not self.config.microphone_device_name
+                    or selected.get("name") == self.config.microphone_device_name
+                )
+            ):
+                return selected
+            if self.config.microphone_device_name:
+                for i in range(self.audio.get_device_count()):
+                    candidate = self.audio.get_device_info_by_index(i)
+                    if (
+                        candidate.get("maxInputChannels", 0) > 0
+                        and not candidate.get("isLoopbackDevice", False)
+                        and candidate.get("name") == self.config.microphone_device_name
+                    ):
+                        return candidate
+            print("⚠️  Saved microphone is unavailable; using the Windows default.")
+        return self.audio.get_default_input_device_info()
 
     def list_devices(self) -> list[dict]:
         """List all available audio devices."""
@@ -176,11 +220,7 @@ class AudioCapture:
 
         if self.config.include_microphone:
             try:
-                self._mic_device_info = (
-                    self.audio.get_device_info_by_index(self.config.microphone_device_index)
-                    if self.config.microphone_device_index is not None
-                    else self.audio.get_default_input_device_info()
-                )
+                self._mic_device_info = self.find_microphone_device()
                 mic_channels = int(self._mic_device_info["maxInputChannels"])
                 mic_rate = int(self._mic_device_info["defaultSampleRate"])
                 if mic_channels <= 0:

@@ -19,8 +19,10 @@ PERSISTED_FIELDS = (
     "speaker_count",
     "max_speakers",
     "device_index",
+    "device_name",
     "include_microphone",
     "microphone_device_index",
+    "microphone_device_name",
     "microphone_gain",
 )
 

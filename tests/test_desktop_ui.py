@@ -13,8 +13,10 @@ def form_values(**overrides):
         "speaker_count": "2",
         "max_speakers": "4",
         "device_index": 3,
+        "device_name": "Speakers (loopback)",
         "include_microphone": False,
         "microphone_device_index": 5,
+        "microphone_device_name": "Microphone",
         "microphone_gain": "1.5",
         "transcription_provider": "local",
         "transcription_model": "whisper-1",
@@ -34,6 +36,7 @@ def test_apply_form_values_updates_config():
     assert config.speaker_count == 2
     assert config.max_speakers == 4
     assert config.device_index == 3
+    assert config.device_name == "Speakers (loopback)"
     assert config.include_microphone is False
     assert config.microphone_gain == 1.5
 

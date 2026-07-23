@@ -19,6 +19,7 @@ def test_desktop_settings_round_trip_without_secrets(tmp_path):
         transcription_api_key="do-not-persist",
         speaker_count=2,
         device_index=7,
+        device_name="Speakers (loopback)",
     )
 
     save_settings(config, path)
@@ -27,6 +28,7 @@ def test_desktop_settings_round_trip_without_secrets(tmp_path):
     assert loaded["output_dir"] == "D:/Meetings"
     assert loaded["speaker_count"] == 2
     assert loaded["device_index"] == 7
+    assert loaded["device_name"] == "Speakers (loopback)"
     assert "transcription_api_key" not in loaded
     assert "do-not-persist" not in path.read_text(encoding="utf-8")
 

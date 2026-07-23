@@ -47,17 +47,21 @@ def apply_form_values(config: Config, values: dict[str, Any]) -> None:
     config.speaker_count = speaker_count
     config.max_speakers = max_speakers
     config.device_index = values["device_index"]
+    config.device_name = values.get("device_name")
     config.include_microphone = bool(values["include_microphone"])
     config.microphone_device_index = values["microphone_device_index"]
+    config.microphone_device_name = values.get("microphone_device_name")
     config.microphone_gain = gain
     config.transcription_provider = values["transcription_provider"]
     config.transcription_model = str(values["transcription_model"]).strip() or "whisper-1"
     config.transcription_base_url = str(values["transcription_base_url"]).strip() or None
 
 
-def _list_audio_devices(config: Config) -> tuple[list[tuple[str, int | None]], list[tuple[str, int | None]]]:
-    loopback_devices = [("Default Windows output", None)]
-    microphones = [("Default microphone", None)]
+def _list_audio_devices(
+    config: Config,
+) -> tuple[list[tuple[str, int | None, str | None]], list[tuple[str, int | None, str | None]]]:
+    loopback_devices = [("Default Windows output", None, None)]
+    microphones = [("Default microphone", None, None)]
     try:
         from audio_capture import AudioCapture
 
@@ -66,9 +70,9 @@ def _list_audio_devices(config: Config) -> tuple[list[tuple[str, int | None]], l
             for device in capture.list_devices():
                 label = f"[{device['index']}] {device['name']}"
                 if device["loopback"]:
-                    loopback_devices.append((label, device["index"]))
+                    loopback_devices.append((label, device["index"], device["name"]))
                 elif device["channels"] > 0:
-                    microphones.append((label, device["index"]))
+                    microphones.append((label, device["index"], device["name"]))
         finally:
             capture.cleanup()
     except Exception as exc:
@@ -120,18 +124,25 @@ def _run_settings_dialog(config: Config, first_run: bool) -> bool:
         row += 1
 
     loopback_devices, microphones = _list_audio_devices(config)
-    loopback_labels = [label for label, _ in loopback_devices]
-    microphone_labels = [label for label, _ in microphones]
-    loopback_by_label = dict(loopback_devices)
-    microphone_by_label = dict(microphones)
+    loopback_labels = [label for label, _, _ in loopback_devices]
+    microphone_labels = [label for label, _, _ in microphones]
+    loopback_by_label = {label: (index, name) for label, index, name in loopback_devices}
+    microphone_by_label = {label: (index, name) for label, index, name in microphones}
 
-    def selected_label(devices: list[tuple[str, int | None]], index: int | None) -> str:
-        return next((label for label, value in devices if value == index), devices[0][0])
+    def selected_label(
+        devices: list[tuple[str, int | None, str | None]], index: int | None, name: str | None
+    ) -> str:
+        return next(
+            (label for label, value, device_name in devices if value == index and (not name or device_name == name)),
+            devices[0][0],
+        )
 
     output_var = tk.StringVar(value=config.output_dir)
     output_format_var = tk.StringVar(value=config.output_format)
-    loopback_var = tk.StringVar(value=selected_label(loopback_devices, config.device_index))
-    microphone_var = tk.StringVar(value=selected_label(microphones, config.microphone_device_index))
+    loopback_var = tk.StringVar(value=selected_label(loopback_devices, config.device_index, config.device_name))
+    microphone_var = tk.StringVar(
+        value=selected_label(microphones, config.microphone_device_index, config.microphone_device_name)
+    )
     include_mic_var = tk.BooleanVar(value=config.include_microphone)
     mic_gain_var = tk.StringVar(value=f"{config.microphone_gain:g}")
     model_var = tk.StringVar(value=config.model_size)
@@ -216,11 +227,15 @@ def _run_settings_dialog(config: Config, first_run: bool) -> bool:
         if first_run and not consent_var.get():
             messagebox.showerror("Consent required", "Acknowledge the recording consent notice to continue.")
             return
+        loopback_index, loopback_name = loopback_by_label[loopback_var.get()]
+        microphone_index, microphone_name = microphone_by_label[microphone_var.get()]
         values = {
             "output_dir": output_var.get(),
             "output_format": output_format_var.get(),
-            "device_index": loopback_by_label[loopback_var.get()],
-            "microphone_device_index": microphone_by_label[microphone_var.get()],
+            "device_index": loopback_index,
+            "device_name": loopback_name,
+            "microphone_device_index": microphone_index,
+            "microphone_device_name": microphone_name,
             "include_microphone": include_mic_var.get(),
             "microphone_gain": mic_gain_var.get(),
             "model_size": model_var.get(),

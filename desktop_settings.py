@@ -73,6 +73,7 @@ def save_settings(config: Config, path: Path | None = None) -> None:
 def apply_desktop_settings(config: Config, path: Path | None = None) -> Config:
     """Apply saved settings and desktop-safe defaults to a config object."""
     config.output_dir = str(default_recordings_dir())
+    config.output_format = "all"
     for field, value in load_settings(path).items():
         setattr(config, field, value)
     return config

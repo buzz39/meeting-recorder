@@ -51,6 +51,7 @@ def test_apply_desktop_settings_ignores_unknown_fields(tmp_path, monkeypatch):
 
     assert config.model_size == "tiny"
     assert config.output_dir == str(tmp_path / "Documents" / "Meeting Recorder")
+    assert config.output_format == "all"
     assert not hasattr(config, "unknown")
 
 

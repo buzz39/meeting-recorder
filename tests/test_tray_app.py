@@ -31,6 +31,7 @@ def test_quit_stops_and_waits_for_active_recording():
     app._recorder = FakeRecorder()
     app._record_thread = FakeThread()
     app._icon = FakeIcon()
+    app._update_icon = lambda: None
 
     app._quit()
 

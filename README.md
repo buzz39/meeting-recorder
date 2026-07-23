@@ -41,6 +41,28 @@ This project's niche is the combination of **system-audio loopback** (capture th
 
 ## Installation
 
+### Windows desktop installer
+
+For normal desktop use, install a signed `MeetingRecorder-*-Setup.exe` release.
+The installer creates a Start menu shortcut and can launch Meeting Recorder
+automatically when you sign in. On first launch, the setup window:
+
+1. explains recording consent, local storage, microphone capture, and cloud uploads;
+2. lets you choose audio devices, recordings folder, model, language, speaker
+   count, transcript format, and local or cloud transcription; and
+3. saves non-secret preferences under `%APPDATA%\Meeting Recorder`.
+
+The application then lives in the Windows notification area. Right-click its
+icon to start or stop recording, open the recordings folder, or change Settings.
+Recordings default to `Documents\Meeting Recorder`, so application upgrades do
+not remove them. API keys and HuggingFace tokens are never stored in the settings
+file; continue to provide them through environment variables.
+
+The desktop installer contains the lightweight energy-based diarizer. Local
+Whisper models download automatically on the first recording. Developers who
+need pyannote's more accurate diarization should use the full Python installation
+below and set `HF_TOKEN`.
+
 ### Full install (with pyannote speaker diarization)
 
 ```bash
@@ -155,6 +177,7 @@ This minimizes to the system tray with:
 - 🔴 Red circle icon when recording
 - ⚫ Gray circle icon when idle
 - Right-click menu: Start Recording, Stop Recording, Open Recordings Folder, Quit
+- Native first-run setup and a Settings window
 - Tooltip shows elapsed recording time
 
 ### Transcribe an existing file
@@ -358,6 +381,29 @@ See [SECURITY.md](SECURITY.md) for reporting security issues.
 Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for local
 setup, the test command, and lint configuration. The change history lives in
 [CHANGELOG.md](CHANGELOG.md).
+
+### Building the Windows installer
+
+Install Python 3.10+, the lite runtime requirements, the pinned packaging tools,
+Inno Setup 6, and the Windows SDK (for `signtool.exe`):
+
+```powershell
+python -m pip install -r requirements-lite.txt
+python -m pip install -r requirements-build.txt
+$env:SIGN_CERT_SHA1 = "certificate thumbprint from the Windows certificate store"
+.\installer\build.ps1
+```
+
+The build produces a PyInstaller onedir application and
+`dist\MeetingRecorder-0.1.0-Setup.exe`. Both executables are SHA-256 signed and
+timestamped. For a local packaging test without a certificate, use
+`.\installer\build.ps1 -AllowUnsigned`; do not distribute unsigned builds.
+
+Before publishing, install the generated package on clean Windows 10 and 11
+machines and verify first launch, recording start/stop, settings persistence,
+startup-on-login, upgrade over the previous version, and uninstall. Upgrades
+retain `%APPDATA%\Meeting Recorder` settings and recordings stored outside the
+installation directory.
 
 ## License
 

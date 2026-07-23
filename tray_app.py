@@ -80,14 +80,20 @@ class TrayApp:
 
         def _record():
             from recorder import Recorder
-            self._recorder = Recorder(self.config)
-            self._recorder.start_recording()
-            # Recording ended (Ctrl+C or stop)
-            self.is_recording = False
-            self._is_stopping = False
-            self._start_time = None
-            self._update_icon()
-            self._notify("Recording saved", "Your meeting recording has been saved.")
+            try:
+                self._recorder = Recorder(self.config)
+                self._recorder.start_recording()
+            except Exception as e:
+                print(f"❌ Recording failed: {e}")
+                self._notify("Recording failed", str(e))
+            else:
+                self._notify("Recording saved", "Your meeting recording has been saved.")
+            finally:
+                self.is_recording = False
+                self._is_stopping = False
+                self._start_time = None
+                self._recorder = None
+                self._update_icon()
 
         self._record_thread = threading.Thread(target=_record, daemon=True)
         self._record_thread.start()

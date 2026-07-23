@@ -8,6 +8,7 @@ NOTE: This module requires Windows 10/11 and pyaudiowpatch.
 """
 
 import queue
+import tempfile
 import threading
 import wave
 
@@ -38,6 +39,7 @@ except ImportError:
 # Warn only on substantial source-length mismatch. Small differences are normal
 # with independent audio devices and are hidden by padding/trimming each chunk.
 _TIMING_DRIFT_WARNING_RATIO = 0.1
+_CONVERSION_BLOCK_BYTES = 1024 * 1024
 
 
 def _resample_audio(audio: np.ndarray, src_rate: int, dst_rate: int) -> np.ndarray:
@@ -73,8 +75,8 @@ class AudioCapture:
         self.is_recording = False
         self.audio_queue: queue.Queue[np.ndarray] = queue.Queue()
         self.mic_queue: queue.Queue[np.ndarray] = queue.Queue()
-        self._raw_frames: list[bytes] = []  # For saving full WAV
-        self._processed_chunks: list[np.ndarray] = []  # Mixed mono 16kHz chunks when mic is enabled
+        self._raw_audio_file = None
+        self._processed_audio_file = None
         self._lock = threading.Lock()
         self._device_info = None
         self._mic_device_info = None
@@ -123,7 +125,7 @@ class AudioCapture:
         """Called by PyAudio for each audio buffer."""
         with self._lock:
             if self.is_recording:
-                self._raw_frames.append(in_data)
+                self._raw_audio_file.write(in_data)
                 # Convert to numpy, resample to 16kHz mono float32
                 audio_data = np.frombuffer(in_data, dtype=np.float32)
                 # If stereo (or more), mix down to mono
@@ -156,8 +158,8 @@ class AudioCapture:
         print(f"   Channels: {device_channels}, Rate: {device_rate}Hz")
 
         self.is_recording = True
-        self._raw_frames = []
-        self._processed_chunks = []
+        self._raw_audio_file = tempfile.TemporaryFile()
+        self._processed_audio_file = tempfile.TemporaryFile()
 
         # Open stream using the loopback device's native format
         # We capture at device rate and convert later for Whisper
@@ -216,10 +218,7 @@ class AudioCapture:
             self.mic_stream.stop_stream()
             self.mic_stream.close()
             self.mic_stream = None
-        with self._lock:
-            frames = list(self._raw_frames)
-            self._raw_frames = []
-        return frames
+        return []
 
     def save_wav(self, filepath: str, frames: list[bytes]):
         """Save captured audio frames to a WAV file.
@@ -230,31 +229,40 @@ class AudioCapture:
         float32 bytes with `setsampwidth(4)` produces a file that most players
         misinterpret as int32 and render as static.
         """
-        if self.config.include_microphone and self._processed_chunks:
-            audio_f32 = np.concatenate(self._processed_chunks)
-            audio_i16 = (np.clip(audio_f32, -1.0, 1.0) * 32767.0).astype(np.int16)
+        if (
+            self.config.include_microphone
+            and self._processed_audio_file
+            and self._processed_audio_file.tell() > 0
+        ):
             with wave.open(filepath, "wb") as wf:
                 wf.setnchannels(1)
                 wf.setsampwidth(2)
                 wf.setframerate(self.config.sample_rate)
-                wf.writeframes(audio_i16.tobytes())
+                self._write_float_file_as_pcm(self._processed_audio_file, wf)
             return
 
-        if not frames or not self._device_info:
+        if not self._raw_audio_file or not self._device_info:
             return
         channels = self._device_info["maxInputChannels"]
         rate = int(self._device_info["defaultSampleRate"])
-
-        # Concatenate all float32 frames, clip, and convert to int16 PCM.
-        audio_f32 = np.frombuffer(b"".join(frames), dtype=np.float32)
-        audio_clipped = np.clip(audio_f32, -1.0, 1.0)
-        audio_i16 = (audio_clipped * 32767.0).astype(np.int16)
 
         with wave.open(filepath, "wb") as wf:
             wf.setnchannels(channels)
             wf.setsampwidth(2)  # int16 = 2 bytes
             wf.setframerate(rate)
-            wf.writeframes(audio_i16.tobytes())
+            self._write_float_file_as_pcm(self._raw_audio_file, wf)
+
+    @staticmethod
+    def _write_float_file_as_pcm(source, destination):
+        """Convert a disk-backed float32 stream to int16 PCM in bounded blocks."""
+        source.seek(0)
+        while data := source.read(_CONVERSION_BLOCK_BYTES):
+            usable_bytes = len(data) - (len(data) % np.dtype(np.float32).itemsize)
+            if not usable_bytes:
+                continue
+            audio_f32 = np.frombuffer(data[:usable_bytes], dtype=np.float32)
+            audio_i16 = (np.clip(audio_f32, -1.0, 1.0) * 32767.0).astype(np.int16)
+            destination.writeframesraw(audio_i16.tobytes())
 
     def get_chunk(self, duration: float, stop_event: threading.Event | None = None) -> np.ndarray | None:
         """Collect audio samples for `duration` seconds, return as float32 array.
@@ -328,10 +336,16 @@ class AudioCapture:
                 # float32 audio range. If both sources are loud, clipping causes
                 # distortion; lower --mic-gain if the mixed recording sounds harsh.
                 audio = np.clip(audio + mic_audio, -1.0, 1.0)
-            self._processed_chunks.append(audio.copy())
+            if self._processed_audio_file:
+                self._processed_audio_file.write(audio.astype(np.float32, copy=False).tobytes())
 
         return audio.astype(np.float32)
 
     def cleanup(self):
         """Release PyAudio resources."""
+        for temp_file in (self._raw_audio_file, self._processed_audio_file):
+            if temp_file:
+                temp_file.close()
+        self._raw_audio_file = None
+        self._processed_audio_file = None
         self.audio.terminate()

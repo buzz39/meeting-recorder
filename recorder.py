@@ -66,6 +66,8 @@ class Recorder:
         # Import here so the module can be loaded on Linux for testing structure
         from audio_capture import AudioCapture
 
+        self._stop_event.clear()
+
         # Ensure output directory exists
         os.makedirs(self.config.output_dir, exist_ok=True)
 
@@ -161,32 +163,35 @@ class Recorder:
         except Exception as e:
             print(f"\n❌ Error during recording: {e}")
 
-        # Stop and save
-        frames = capture.stop()
+        try:
+            # Stop and save
+            frames = capture.stop()
 
-        print("-" * 60)
-        print(f"\n💾 Saving audio to {wav_path}")
-        capture.save_wav(wav_path, frames)
+            print("-" * 60)
+            print(f"\n💾 Saving audio to {wav_path}")
+            capture.save_wav(wav_path, frames)
 
-        for fmt, path in output_paths.items():
-            print(f"💾 Saving {fmt} transcript to {path}")
-            self._save_transcript(path, self._all_segments, fmt)
+            for fmt, path in output_paths.items():
+                print(f"💾 Saving {fmt} transcript to {path}")
+                self._save_transcript(path, self._all_segments, fmt)
 
-        # Always emit a small self-contained HTML viewer alongside the WAV
-        # so users can play the audio and click any line to seek to it
-        # without needing extra tooling.
-        html_path = os.path.join(self.config.output_dir, f"{session_name}.html")
-        print(f"💾 Saving HTML viewer to {html_path}")
-        self._save_html(html_path, self._all_segments, os.path.basename(wav_path), session_name)
-
-        capture.cleanup()
-        # Restore the previous SIGINT handler so subsequent recordings (e.g.
-        # in tray mode) and shell behaviour are not affected.
-        if previous_sigint is not None:
-            try:
-                signal.signal(signal.SIGINT, previous_sigint)
-            except (ValueError, TypeError):
-                pass
+            # Always emit a small self-contained HTML viewer alongside the WAV
+            # so users can play the audio and click any line to seek to it
+            # without needing extra tooling.
+            html_path = os.path.join(self.config.output_dir, f"{session_name}.html")
+            print(f"💾 Saving HTML viewer to {html_path}")
+            self._save_html(html_path, self._all_segments, os.path.basename(wav_path), session_name)
+        finally:
+            if capture.is_recording:
+                capture.stop()
+            capture.cleanup()
+            # Restore the previous SIGINT handler so subsequent recordings (e.g.
+            # in tray mode) and shell behaviour are not affected.
+            if previous_sigint is not None:
+                try:
+                    signal.signal(signal.SIGINT, previous_sigint)
+                except (ValueError, TypeError):
+                    pass
         print(f"\n✅ Recording saved! ({chunk_count} chunks processed)")
         print(f"   Audio: {wav_path}")
         for fmt, path in output_paths.items():

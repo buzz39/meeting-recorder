@@ -7,6 +7,10 @@
 
 A lightweight Windows CLI tool that captures system audio (WASAPI loopback), transcribes it locally using faster-whisper, and identifies different speakers — all running offline after initial setup.
 
+> [!IMPORTANT]
+> Only record people with their knowledge and consent. Recording laws vary by
+> location and meeting context; you are responsible for complying with them.
+
 ## Features
 
 - **Local or cloud transcription** — faster-whisper runs offline, or use OpenAI's transcription API on low-RAM/CPU systems
@@ -210,7 +214,9 @@ If you only want system audio, pass `--no-include-mic`.
 ### Cloud transcription for low-resource systems
 
 Cloud transcription avoids local Whisper model downloads, high RAM/CPU use, and
-local model cold start. Set your API key and select a cloud provider:
+local model cold start. It uploads the selected audio to the configured provider,
+where that provider's privacy, retention, and billing terms apply. Set your API
+key and select a cloud provider:
 
 ```bash
 set OPENAI_API_KEY=sk_your_key_here       # Windows CMD
@@ -325,15 +331,27 @@ Each recording creates files in the output directory:
   tracked as future work.
 - **Diarization runs per chunk** — both the energy-based and pyannote
   back-ends process each ~30 s chunk in isolation, so global speaker labels
-  can drift across long meetings. Best results come from running pyannote
-  end-to-end on the saved WAV after the meeting (see "Transcribe an existing
-  file").
+  can drift across long meetings. The `transcribe` command currently transcribes
+  existing files but does not add speaker labels.
 - **Energy-based diarizer is a heuristic** — it leans on RMS, spectral
   centroid, and zero-crossing rate. It works well when speakers have
   distinct pitch/timbre and take clear turns; it struggles with overlapping
   speech and speakers with similar voices.
 - **First-run model download** — the Whisper model (~488 MB for `small`) is
   fetched on first use and cached. Plan accordingly on metered connections.
+
+## Privacy and data handling
+
+- Local transcription and diarization run on your computer after their initial
+  model downloads. The project contains no telemetry or analytics.
+- Cloud transcription uploads audio to the configured API endpoint. Do not use
+  cloud mode for material that the provider is not authorized to process.
+- Recordings and transcripts are stored unencrypted in the output directory.
+  Protect, retain, share, and delete these files according to your requirements.
+- API tokens are read from environment variables; do not put real tokens in
+  source files, command examples, bug reports, or committed configuration.
+
+See [SECURITY.md](SECURITY.md) for reporting security issues.
 
 ## Contributing
 

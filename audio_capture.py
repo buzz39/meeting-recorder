@@ -39,7 +39,6 @@ except ImportError:
 # Warn only on substantial source-length mismatch. Small differences are normal
 # with independent audio devices and are hidden by padding/trimming each chunk.
 _TIMING_DRIFT_WARNING_RATIO = 0.1
-_MAX_QUEUED_AUDIO_BUFFERS = 3000
 _CONVERSION_BLOCK_BYTES = 1024 * 1024
 
 
@@ -74,12 +73,10 @@ class AudioCapture:
         self.stream = None
         self.mic_stream = None
         self.is_recording = False
-        self.audio_queue: queue.Queue[np.ndarray] = queue.Queue(maxsize=_MAX_QUEUED_AUDIO_BUFFERS)
-        self.mic_queue: queue.Queue[np.ndarray] = queue.Queue(maxsize=_MAX_QUEUED_AUDIO_BUFFERS)
+        self.audio_queue: queue.Queue[np.ndarray] = queue.Queue()
+        self.mic_queue: queue.Queue[np.ndarray] = queue.Queue()
         self._raw_audio_file = None
         self._processed_audio_file = None
-        self._dropped_audio_buffers = 0
-        self._dropped_mic_buffers = 0
         self._lock = threading.Lock()
         self._device_info = None
         self._mic_device_info = None
@@ -135,10 +132,7 @@ class AudioCapture:
                 if self._device_info and self._device_info["maxInputChannels"] > 1:
                     channels = self._device_info["maxInputChannels"]
                     audio_data = audio_data.reshape(-1, channels).mean(axis=1)
-                try:
-                    self.audio_queue.put_nowait(audio_data)
-                except queue.Full:
-                    self._dropped_audio_buffers += 1
+                self.audio_queue.put(audio_data)
         return (in_data, pyaudio.paContinue)
 
     def _mic_callback(self, in_data, frame_count, time_info, status):
@@ -151,10 +145,7 @@ class AudioCapture:
                     audio_data = audio_data.reshape(-1, channels).mean(axis=1)
                 if self._apply_microphone_gain:
                     audio_data = audio_data * float(self.config.microphone_gain)
-                try:
-                    self.mic_queue.put_nowait(audio_data)
-                except queue.Full:
-                    self._dropped_mic_buffers += 1
+                self.mic_queue.put(audio_data)
         return (in_data, pyaudio.paContinue)
 
     def start(self):
@@ -169,8 +160,6 @@ class AudioCapture:
         self.is_recording = True
         self._raw_audio_file = tempfile.TemporaryFile()
         self._processed_audio_file = tempfile.TemporaryFile()
-        self._dropped_audio_buffers = 0
-        self._dropped_mic_buffers = 0
 
         # Open stream using the loopback device's native format
         # We capture at device rate and convert later for Whisper
@@ -229,12 +218,6 @@ class AudioCapture:
             self.mic_stream.stop_stream()
             self.mic_stream.close()
             self.mic_stream = None
-        if self._dropped_audio_buffers or self._dropped_mic_buffers:
-            print(
-                "⚠️  Real-time processing fell behind capture; "
-                f"dropped {self._dropped_audio_buffers} loopback and "
-                f"{self._dropped_mic_buffers} microphone buffers from transcription."
-            )
         return []
 
     def save_wav(self, filepath: str, frames: list[bytes]):
@@ -250,8 +233,6 @@ class AudioCapture:
             self.config.include_microphone
             and self._processed_audio_file
             and self._processed_audio_file.tell() > 0
-            and not self._dropped_audio_buffers
-            and not self._dropped_mic_buffers
         ):
             with wave.open(filepath, "wb") as wf:
                 wf.setnchannels(1)
